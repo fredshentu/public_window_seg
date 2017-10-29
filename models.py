@@ -36,7 +36,7 @@ def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="SAME", group=
         kernel_groups = tf.split(3, group, kernel)
         output_groups = [convolve(i, k) for i,k in zip(input_groups, kernel_groups)]
         conv = tf.concat(3, output_groups)
-    return tf.reshape(tf.nn.bias_add(conv, biases), [-1]+conv.get_shape().as_list()[1:])
+    return tf.nn.bias_add(conv, biases)
 
 def vgg_network(img_ph, trainable=False, reuse=False):
                 
@@ -99,51 +99,109 @@ def vgg_network(img_ph, trainable=False, reuse=False):
         x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
         
         return x
-        
 
-def score_network(x, reuse=False, dropout=1.0):
-    with tf.variable_scope('scorer', reuse=reuse) as sc:
-        x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
-        x = tf.reshape(x, [-1, 512*7*7])
-        fc1w = new_var('fc1w', [512*7*7,512])
-        fc1b = new_var('fc1b',[512])
-        x = tf.matmul(x, fc1w) + fc1b
-        x = tf.nn.relu(x)
-        x = tf.nn.dropout(x, dropout)
-        
-        fc2w = new_var('fc2w', [512,1024])
-        fc2b = new_var('fc2b',[1024])
-        x = tf.matmul(x, fc2w) + fc2b
-        x = tf.nn.relu(x)
-        x = tf.nn.dropout(x, dropout)
-        
-        fcow = new_var('fcow', [1024,2])
-        fcob = new_var('fcob',[2])
-        x = tf.matmul(x, fcow) + fcob
-    return x
-
-
-def seg_network(x, reuse=False, dropout=1.0):
-    with tf.variable_scope('segmentation', reuse=reuse) as sc:
+def shared_trunk(x, reuse=False, dropout=1.0):
+    with tf.variable_scope('shared_trunk', reuse=reuse):
         conv1w = new_var('conv1w', [1,1,512,512])
         conv1b = new_var('conv1b', [512])
-        x = conv(x, conv1w, conv1b, 1,1,512,1,1)
+        x = conv(x, conv1w, conv1b, 1,1,512,1,1, 'VALID')
         x = tf.nn.relu(x)
         x = tf.nn.dropout(x, dropout)
-        
-        x = tf.reshape(x, [-1,512*14*14])
-        
-        fc1w = new_var('fc1w', [512*14*14,512])
-        fc1b = new_var('fc1b',[512])
+
+        conv2w = new_var('conv2w', [5,5,512,128])
+        conv2b = new_var('conv2b', [128])
+        x = conv(x, conv2w, conv2b, 5,5,128,1,1, 'VALID')
+        x = tf.nn.relu(x)
+        x = tf.nn.dropout(x, dropout)
+
+        x = tf.reshape(x, [-1,128*10*10])
+        fc1w = new_var('fc1w', [128*10*10,512])
+        fc1b = new_var('fc1b', [512])
         x = tf.matmul(x, fc1w) + fc1b
         x = tf.nn.relu(x)
         x = tf.nn.dropout(x, dropout)
-        
-        fcow = new_var('fcow', [512,56*56*2])
-        fcob = new_var('fcob',[56*56*2])
-        x = tf.matmul(x, fcow) + fcob
-        
-        x = tf.reshape(x, [-1,56,56,2])
-        x = tf.image.resize_images(x, [224,224])
-        
+
     return x
+
+def seg_head(x, reuse, dropout=1.0):
+    with tf.variable_scope('segmentation_head'):
+        fcow = new_var('fcow', [512,56*56*2])
+        fcob = new_var('fcob', [56*56*2])
+        x = tf.matmul(x, fcow) + fcob
+        x = tf.image.resize_images(x, [224,224])
+    return x
+
+def score_head(x, reuse, dropout=1.0):
+    with tf.variable_scope('score_head'):
+        fc1w = new_var('fc1w', [512,1024])
+        fc1b = new_var('fc1b', [1024])
+        x = tf.matmul(x, fc1w) + fc1b
+        x = tf.nn.relu(x)
+        x = tf.nn.dropout(x, dropout)
+
+        fcow = new_var('fcow', [1024,1])
+        fcob = new_var('fcob', [1])
+        x = tf.matmul(x, fc1w) + fc1b
+    return x
+
+def build_network(img_ph, trainable=False, reuse=False, dropout=1.0):
+    '''
+    https://arxiv.org/pdf/1603.08695.pdf
+    Head-C architecture
+    '''
+    x = vgg_network(img_ph, trainable=trainable, reuse=reuse)
+    x = shared_trunk(x, reuse=reuse, dropout=dropout)
+    mask = seg_head(x, reuse=reuse, dropout=dropout)
+    score = score_head(x, reuse=reuse, dropout=dropout)
+    return mask, score
+
+
+
+# Outdated... DO NOT USE
+
+# def score_network(x, reuse=False, dropout=1.0):
+#     with tf.variable_scope('scorer', reuse=reuse) as sc:
+#         x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
+#         x = tf.reshape(x, [-1, 512*7*7])
+#         fc1w = new_var('fc1w', [512*7*7,512])
+#         fc1b = new_var('fc1b',[512])
+#         x = tf.matmul(x, fc1w) + fc1b
+#         x = tf.nn.relu(x)
+#         x = tf.nn.dropout(x, dropout)
+        
+#         fc2w = new_var('fc2w', [512,1024])
+#         fc2b = new_var('fc2b',[1024])
+#         x = tf.matmul(x, fc2w) + fc2b
+#         x = tf.nn.relu(x)
+#         x = tf.nn.dropout(x, dropout)
+        
+#         fcow = new_var('fcow', [1024,2])
+#         fcob = new_var('fcob',[2])
+#         x = tf.matmul(x, fcow) + fcob
+#     return x
+
+
+# def seg_network(x, reuse=False, dropout=1.0):
+#     with tf.variable_scope('segmentation', reuse=reuse) as sc:
+#         conv1w = new_var('conv1w', [1,1,512,512])
+#         conv1b = new_var('conv1b', [512])
+#         x = conv(x, conv1w, conv1b, 1,1,512,1,1)
+#         x = tf.nn.relu(x)
+#         x = tf.nn.dropout(x, dropout)
+        
+#         x = tf.reshape(x, [-1,512*14*14])
+        
+#         fc1w = new_var('fc1w', [512*14*14,512])
+#         fc1b = new_var('fc1b',[512])
+#         x = tf.matmul(x, fc1w) + fc1b
+#         x = tf.nn.relu(x)
+#         x = tf.nn.dropout(x, dropout)
+        
+#         fcow = new_var('fcow', [512,56*56*2])
+#         fcob = new_var('fcob',[56*56*2])
+#         x = tf.matmul(x, fcow) + fcob
+        
+#         x = tf.reshape(x, [-1,56,56,2])
+#         x = tf.image.resize_images(x, [224,224])
+        
+#     return x

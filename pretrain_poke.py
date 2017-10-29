@@ -12,7 +12,7 @@ import numpy as np
 import pickle
 import os
 
-from models import vgg_network, score_network, seg_network
+from models import build_network
 
 
 # scales = tf.convert_to_tensor([2*(-1/4),1.0,1.15, 2**(-1), 2**(-0.75), 2**(-0.6), 2**(0.6), 2**(0.75), 2.0])
@@ -252,12 +252,12 @@ def main():
 
 
     # Build network
-    train_vgg_out = vgg_network(train_img, reuse=False, trainable=args.train_vgg)
-    train_pred_score = score_network(train_vgg_out, reuse=False, dropout=0.5)
-    train_pred_mask = seg_network(train_vgg_out, reuse=False, dropout=0.5)
-    val_vgg_out = vgg_network(val_img, reuse=True, trainable=args.train_vgg)
-    val_pred_score = score_network(val_vgg_out, reuse=True, dropout=1.0)
-    val_pred_mask = seg_network(val_vgg_out, reuse=True, dropout=1.0)
+    train_mask, train_score = build_network(train_img, trainable=args.train_vgg, reuse=True, dropout=0.5)
+    val_mask, val_score = build_network(val_img, trainable=args.train_vgg, reuse=False, dropout=1.0)
+
+    # tf.add_to_collection('mask_output',)
+    # tf.add_to_collection('mask_output', val_mask) # No dropout needed
+    # tf.add_to_collection('score_output', val_score) # No dropout needed
 
     train_mask_loss = tf.cast(tf.reshape(train_score,[-1,1,1]), tf.float32) * tf.nn.sparse_softmax_cross_entropy_with_logits(train_pred_mask, train_mask)
     train_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(train_pred_score, train_score)
