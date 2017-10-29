@@ -1,0 +1,4 @@
+models/*
+boards/*
+__pycache__
+*.pkl
