@@ -145,24 +145,15 @@ def shared_trunk(x, reuse=False, dropout=1.0):
 
 def shared_trunk_resnet(x, reuse=False, dropout=1.0):
     with tf.variable_scope('shared_trunk', reuse=reuse):
-        conv1w = new_var('conv1_weights', [1,1,1024,512])
-        conv1b = new_var('conv1_bias', [512])
-        x = conv(x, conv1w, conv1b, 1,1,512,1,1, 'VALID')
+        conv1w = new_var('conv1_weights', [1,1,1024,128])
+        conv1b = new_var('conv1_bias', [128])
+        x = conv(x, conv1w, conv1b, 5,5,512,1,1, 'VALID')
         x = tf.nn.relu(x)
-        # x = tf.nn.dropout(x, dropout)
-
-        conv2w = new_var('conv2_weights', [5,5,512,128])
-        conv2b = new_var('conv2_bias', [128])
-        x = conv(x, conv2w, conv2b, 5,5,128,1,1, 'VALID')
-        x = tf.nn.relu(x)
-        # x = tf.nn.dropout(x, dropout)
 
         x = tf.reshape(x, [-1,128*10*10])
         fc1w = new_var('fc1_weights', [128*10*10,512])
         fc1b = new_var('fc1_bias', [512])
         x = tf.matmul(x, fc1w) + fc1b
-        x = tf.nn.relu(x)
-        # x = tf.nn.dropout(x, dropout)
 
     return x
 
@@ -204,12 +195,13 @@ def score_head(x, reuse, dropout=1.0):
     with tf.variable_scope('score_head', reuse=reuse):
         fc1w = new_var('fc1_weights', [512,1024])
         fc1b = new_var('fc1_bias', [1024])
+        x = tf.nn.dropout(x, dropout)
         x = tf.matmul(x, fc1w) + fc1b
         x = tf.nn.relu(x)
-        x = tf.nn.dropout(x, dropout)
 
         fcow = new_var('fco_weights', [1024,2])
         fcob = new_var('fco_bias', [2])
+        x = tf.nn.dropout(x, dropout)
         x = tf.matmul(x, fcow) + fcob
     return x
 
