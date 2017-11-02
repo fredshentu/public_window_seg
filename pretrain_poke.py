@@ -15,190 +15,379 @@ import os
 from models import build_vgg_network, build_resnet50_network, build_resnet18_network
 
 
-# scales = tf.convert_to_tensor([2**(-1/4),1.0,1.15, 2**(-1), 2**(-0.75), 2**(-0.6), 2**(0.6), 2**(0.75), 2.0])
 scales = tf.convert_to_tensor([2**(-0.25),1.0, 2**(0.25), 2**(0.5), 2**0.75, 2**(-0.5), 2**(-0.75), \
+
                                             2**(-1.0),2**(1.0)])
+
 jetter_length = None
+
+
+
 
 
 # def ge
 
+
+
 def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay):
+
     return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f' % (prefix, trunk, ratio, pos_max, neg_min, decay)
 
+
+
 def new_var(name, shape, initializer):
+
     return tf.get_variable(name, shape=shape, initializer=initializer)
 
+
+
 # #assume data is in the format of tfrecord. Want to maintain an replay buffer in disk
+
 def read_decode_positive_example(filename_queue, obs_shape):
+
     reader = tf.TFRecordReader()
+
     _, serialized_example = reader.read(filename_queue)
+
     features = tf.parse_single_example(
+
           serialized_example,
+
           # Defaults are not specified since both keys are required.
+
           features={
+
                   'data': tf.FixedLenFeature([np.prod(obs_shape)], tf.float32),
+
                   'center_max_axis':tf.FixedLenFeature([3], tf.float32),
+
           })
+
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
+
     center_max_axis = tf.reshape(center_max_axis, [3])
+
     data = tf.cast(features['data'], tf.float32)
+
     data = tf.reshape(data, obs_shape)
+
     
-    center_x = center_max_axis[0] 
+
+    center_x = center_max_axis[0]
+
     center_y = center_max_axis[1]
+
     long_axis = center_max_axis[2]
+
     
+
     
-    #scaling to this data
-    random_index = tf.random_uniform(
-                            [1],
-                            minval=0,
-                            maxval=8,
-                            dtype=tf.int32)[0]
-    scale = scales[random_index] * (224.0/long_axis)
+
+    scale = tf.pow(2, tf.random_uniform(1, -0.25, 0.25))
+
+    scale = scale * (224.0/long_axis)
+
+    
+
     center_x = center_max_axis[0] * scale + 200
+
     center_y = center_max_axis[1] * scale + 200
+
     int_final_size = tf.cast(240*scale, tf.int32)
+
     data = tf.image.resize_images(data, (int_final_size, int_final_size))
+
     
+
     
+
     
+
     data = tf.pad(data, [[200,200],[200,200],[0,0]])
 
 
 
+
+
+
+
     middle_offset_heigh = tf.cast(center_y - 112, tf.int32)
+
     middle_offset_width = tf.cast(center_x - 112, tf.int32)
+
     
-    
+
+    #224 crop size, jettering should be 22 instead of 16
+
+    jettering_min = jetter_length[0][0]
+
+    jettering_max = jetter_length[0][1]
+
     elems = tf.cast(tf.convert_to_tensor([1, -1]), tf.int32)
+
     samples = tf.multinomial(tf.log([[10.,10.]]), 1) # note log-prob
+
     offset_width = middle_offset_width + \
+
                         elems[tf.cast(samples[0][0], tf.int32)]*tf.random_uniform(
+
                                                                         [1],
-                                                                        minval=jetter_length[0][0],
-                                                                        maxval=jetter_length[0][1],
+
+                                                                        minval=jettering_min,
+
+                                                                        maxval=jettering_max,
+
                                                                         dtype=tf.int32)[0]
+
     offset_height = middle_offset_heigh + \
+
                         elems[tf.cast(samples[0][0], tf.int32)]*tf.random_uniform(
+
                                                                         [1],
-                                                                        minval=jetter_length[0][0],
-                                                                        maxval=jetter_length[0][1],
+
+                                                                        minval=jettering_min,
+
+                                                                        maxval=jettering_max,
+
                                                                         dtype=tf.int32)[0]
+
     data = tf.image.crop_to_bounding_box(data, offset_height, offset_width,\
+
                                                        224 , 224)
+
     data = tf.image.random_flip_up_down(data)
+
     data = tf.image.random_flip_left_right(data)
+
     image = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
+
     mask = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [3]), [1,2,0])
+
     
+
     return image, mask,1
 
 
+
+
+
 def read_decode_negative_example(filename_queue, obs_shape):
+
     reader = tf.TFRecordReader()
+
     _, serialized_example = reader.read(filename_queue)
+
     features = tf.parse_single_example(
+
           serialized_example,
+
           # Defaults are not specified since both keys are required.
+
           features={
+
                   'data': tf.FixedLenFeature([np.prod(obs_shape)], tf.float32),
+
                   'center_max_axis':tf.FixedLenFeature([3], tf.float32),
+
           })
+
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
+
     center_max_axis = tf.reshape(center_max_axis, [3])
+
     data = tf.cast(features['data'], tf.float32)
+
     data = tf.reshape(data, obs_shape)
+
     
+
     center_x = center_max_axis[0] 
+
     center_y = center_max_axis[1]
+
     long_axis = center_max_axis[2]
+
     #scaling to this data
+
     random_index = tf.random_uniform(
+
                             [1],
+
                             minval=0,
-                            maxval=5,
+
+                            maxval=9,
+
                             dtype=tf.int32)[0]
+
     #if good range, using bad offset, if bad range, using arbitrary offset
-    jetter_range_index = tf.where(random_index < 3, x = 1, y = 2)
+
+   
+
+    
+
+    
+
+    scale1 = tf.pow(2, tf.random_uniform(1, -0.25, 0.25))
+
+    scale1 = scale1 * (224.0/long_axis)
+
     #sometimes use large offset to learn about padding and arena
+
+    scale2 = scales[random_index] * (224.0/long_axis)
+
     
-    jetter_range_index_final = tf.where(random_index < 2, x = 3, y = jetter_range_index)
-    min_jettering = jetter_length[jetter_range_index_final][0]
-    max_jettering = jetter_length[jetter_range_index_final][1]
+
+    scale = tf.where(random_index < 3, x = scale1, y = scale2)
+
     
+
+    jetter_range_index = tf.where(random_index < 3, x = 1, y = 2)
+
+    min_jettering = jetter_length[jetter_range_index][0]
+
+    max_jettering = jetter_length[jetter_range_index][1]
+
     
+
     
+
     
-    scale = scales[random_index] * (224.0/long_axis)
+
     center_x = center_max_axis[0] * scale + 200
+
     center_y = center_max_axis[1] * scale + 200
+
     int_final_size = tf.cast(240*scale, tf.int32)
+
     data = tf.image.resize_images(data, (int_final_size, int_final_size))
+
     
+
     
+
     
+
     data = tf.pad(data, [[200,200],[200,200],[0,0]])
 
 
 
+
+
+
+
     middle_offset_heigh = tf.cast(center_y - 112, tf.int32)
+
     middle_offset_width = tf.cast(center_x - 112, tf.int32)
+
     
+
     
+
     elems = tf.cast(tf.convert_to_tensor([1, -1]), tf.int32)
+
     samples = tf.multinomial(tf.log([[10.,10.]]), 1) # note log-prob
+
     offset_width = middle_offset_width + \
+
                         elems[tf.cast(samples[0][0], tf.int32)]*tf.random_uniform(
+
                                                                         [1],
+
                                                                         minval=min_jettering,
+
                                                                         maxval=max_jettering,
+
                                                                         dtype=tf.int32)[0]
+
     offset_height = middle_offset_heigh + \
+
                         elems[tf.cast(samples[0][0], tf.int32)]*tf.random_uniform(
+
                                                                         [1],
+
                                                                         minval=min_jettering,
+
                                                                         maxval=max_jettering,
+
                                                                         dtype=tf.int32)[0]
+
     data = tf.image.crop_to_bounding_box(data, offset_height, offset_width,\
+
                                                        224 , 224)
+
     data = tf.image.random_flip_up_down(data)
+
     data = tf.image.random_flip_left_right(data)
+
     image = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
+
     mask = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [3]), [1,2,0])
+
+
 
     return image, mask, 0
 
+
+
 def inputs(filenames, obs_shape, train=True, batch_size=16, num_epochs = None, positive = True):
 
+
+
     with tf.name_scope('input'):
+
         filename_queue = tf.train.string_input_producer(
+
                 filenames, num_epochs=num_epochs)
+
         if positive:
+
             image, mask, score= read_decode_positive_example(filename_queue, obs_shape)
+
         
+
         else:
+
             image, mask, score = read_decode_negative_example(filename_queue, obs_shape)
+
             
+
             
+
         if train:
+
             num_thread = 12
+
             queue_capacity = 3000
+
         else:
+
             num_thread = 4
+
             queue_capacity = 3000
+
         image, mask,score = tf.train.shuffle_batch([image,mask,score], 
+
                                 min_after_dequeue=1000 , \
+
                                 batch_size = batch_size, \
+
                                 num_threads = num_thread,\
+
                                 capacity = queue_capacity, enqueue_many = False)
+
         
+
         image = tf.image.resize_images(image, [160,160])
+
         
+
         downsampled_mask = tf.image.resize_images(mask, [112,112])
+
         downsampled_mask = (downsampled_mask + 1) / 2
+
         downsampled_mask = tf.cast(tf.transpose(downsampled_mask, [3,0,1,2])[0], tf.int32)
+
+
 
         return image, downsampled_mask, score
 
@@ -296,10 +485,11 @@ def main():
     val_total_loss = args.mask_ratio * val_mask_loss + val_label_loss
 
     optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
+    train_opt = slim.learning.create_train_op(total_loss, optimizer, clip_gradient_norm=40.0)
     # optimizer = tf.train.AdamOptimizer(args.initlr)
-    grads, variables = zip(*optimizer.compute_gradients(train_total_loss))
-    grads, _ = tf.clip_by_global_norm(grads, 40.0)
-    train_opt = optimizer.apply_gradients(zip(grads, variables))
+    # grads, variables = zip(*optimizer.compute_gradients(train_total_loss))
+    # grads, _ = tf.clip_by_global_norm(grads, 40.0)
+    # train_opt = optimizer.apply_gradients(zip(grads, variables))
 
     # mask_optimizer = tf.train.AdamOptimizer(args.mask_ratio * args.initlr)
     # train_mask_opt = mask_optimizer.minimize(train_mask_loss + args.weight_decay * train_decay_loss)
