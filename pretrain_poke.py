@@ -194,9 +194,9 @@ def inputs(filenames, obs_shape, train=True, batch_size=16, num_epochs = None, p
                                 num_threads = num_thread,\
                                 capacity = queue_capacity, enqueue_many = False)
         
-        image = tf.image.resize_images(image, [224,224])
+        image = tf.image.resize_images(image, [160,160])
         
-        downsampled_mask = tf.image.resize_images(mask, [224,224])
+        downsampled_mask = tf.image.resize_images(mask, [112,112])
         downsampled_mask = (downsampled_mask + 1) / 2
         downsampled_mask = tf.cast(tf.transpose(downsampled_mask, [3,0,1,2])[0], tf.int32)
 

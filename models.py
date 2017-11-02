@@ -145,10 +145,10 @@ def shared_trunk(x, reuse=False, dropout=1.0):
 
 def shared_trunk_resnet(x, reuse=False, dropout=1.0):
     with tf.variable_scope('shared_trunk', reuse=reuse):
-        conv1w = new_var('conv1_weights', [5,5,1024,128])
-        conv1b = new_var('conv1_bias', [128])
-        x = conv(x, conv1w, conv1b, 5,5,128,1,1, 'VALID')
-        x = tf.nn.relu(x)
+        # conv1w = new_var('conv1_weights', [5,5,1024,128])
+        # conv1b = new_var('conv1_bias', [128])
+        # x = conv(x, conv1w, conv1b, 5,5,128,1,1, 'VALID')
+        # x = tf.nn.relu(x)
 
         x = tf.reshape(x, [-1,128*10*10])
         fc1w = new_var('fc1_weights', [128*10*10,512])
@@ -182,7 +182,7 @@ def seg_head(x, reuse, dropout=1.0):
         fcob = new_var('fco_bias', [56*56*2])
         x = tf.matmul(x, fcow) + fcob
         x = tf.reshape(x, [-1,56,56,2])
-        x = tf.image.resize_images(x, [224,224])
+        x = tf.image.resize_images(x, [112,112])
     return x
     
 def rebuild_seg_head(reuse = False):
