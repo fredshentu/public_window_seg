@@ -279,6 +279,8 @@ def main():
 
     tmp_vars = set(tf.all_variables())
 
+    # import pdb; pdb.set_trace()
+
     train_mask_loss = tf.cast(tf.reshape(train_score,[-1,1,1]), tf.float32) * tf.nn.sparse_softmax_cross_entropy_with_logits(train_pred_mask, train_mask)
     train_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(train_pred_score, train_score)
     train_mask_loss = tf.reduce_mean(train_mask_loss)
@@ -331,11 +333,11 @@ def main():
 
     img_summ = []
     val_pos_img_r, val_pos_img_g, val_pos_img_b = tf.unstack((val_pos_img+0.5)*255.0, axis=-1)
-    val_pos_img_viz_r = tf.cast(val_pos_mask, tf.float32) * 255
+    val_pos_img_viz_r = tf.cast(tf.image.resize_images(val_pos_mask, [160,160]), tf.float32) * 255
     val_pos_img_viz = tf.stack([val_pos_img_viz_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
     # import pdb; pdb.set_trace()
-    val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * 255
+    val_pos_img_pred_r = tf.unstack(tf. tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * 255
     val_pos_img_pred_viz = tf.stack([val_pos_img_pred_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
 

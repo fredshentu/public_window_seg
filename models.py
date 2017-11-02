@@ -145,10 +145,11 @@ def shared_trunk(x, reuse=False, dropout=1.0):
 
 def shared_trunk_resnet(x, reuse=False, dropout=1.0):
     with tf.variable_scope('shared_trunk', reuse=reuse):
-        # conv1w = new_var('conv1_weights', [5,5,1024,128])
-        # conv1b = new_var('conv1_bias', [128])
-        # x = conv(x, conv1w, conv1b, 5,5,128,1,1, 'VALID')
-        # x = tf.nn.relu(x)
+        # import pdb; pdb.set_trace()
+        conv1w = new_var('conv1_weights', [1,1,1024,128])
+        conv1b = new_var('conv1_bias', [128])
+        x = conv(x, conv1w, conv1b, 1,1,128,1,1, 'VALID')
+        x = tf.nn.relu(x)
 
         x = tf.reshape(x, [-1,128*10*10])
         fc1w = new_var('fc1_weights', [128*10*10,512])
