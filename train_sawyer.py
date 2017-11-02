@@ -219,11 +219,17 @@ def inputs_sawyer_data(filenames, mode, train=True, batch_size=12, num_epochs = 
                                 num_threads = num_thread,\
                                 capacity = queue_capacity, enqueue_many =False)
         
+<<<<<<< HEAD
         
         mask = tf.cast(tf.transpose(mask, [3,0,1,2])[0], tf.int32)
         mask = tf.image.resize_images(mask, [112,112])
         image = tf.image.resize_images(image, [160,160])
         
+=======
+
+        mask = tf.cast(tf.transpose(mask, [3,0,1,2])[0], tf.int32)
+
+>>>>>>> e5b1003a68b7f77ed7557fd61388771e74f88a48
         return image, mask, score
 
 
@@ -392,9 +398,15 @@ def inputs_poking_data(filenames, obs_shape, train=True, batch_size=16, num_epoc
                                 num_threads = num_thread,\
                                 capacity = queue_capacity, enqueue_many =False)
         
+<<<<<<< HEAD
         image = tf.image.resize_images(image, [160,160])
         
         downsampled_mask = tf.image.resize_images(mask, [112,112])
+=======
+        image = tf.image.resize_images(image, [224,224])
+        
+        downsampled_mask = tf.image.resize_images(mask, [224,224])
+>>>>>>> e5b1003a68b7f77ed7557fd61388771e74f88a48
         downsampled_mask = (downsampled_mask + 1) / 2
         downsampled_mask = tf.cast(tf.transpose(downsampled_mask, [3,0,1,2])[0], tf.int32)
 

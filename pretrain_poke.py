@@ -14,8 +14,6 @@ import os
 
 from models import build_vgg_network, build_resnet50_network, build_resnet18_network
 
-
-# scales = tf.convert_to_tensor([2**(-1/4),1.0,1.15, 2**(-1), 2**(-0.75), 2**(-0.6), 2**(0.6), 2**(0.75), 2.0])
 scales = tf.convert_to_tensor([2**(-0.25),1.0, 2**(0.25), 2**(0.5), 2**0.75, 2**(-0.5), 2**(-0.75), \
                                             2**(-1.0),2**(1.0)])
 jetter_length = None
@@ -206,7 +204,6 @@ def inputs(filenames, obs_shape, train=True, batch_size=16, num_epochs = None, p
         return image, downsampled_mask, score
 
 
-
 def get_lr(timestep):
     if timestep <= 7500:
         return 1e-3
@@ -299,10 +296,14 @@ def main():
     val_total_loss = args.mask_ratio * val_mask_loss + val_label_loss
 
     optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
+<<<<<<< HEAD
+=======
+    train_opt = slim.learning.create_train_op(total_loss, optimizer, clip_gradient_norm=40.0)
+>>>>>>> e5b1003a68b7f77ed7557fd61388771e74f88a48
     # optimizer = tf.train.AdamOptimizer(args.initlr)
-    grads, variables = zip(*optimizer.compute_gradients(train_total_loss))
-    grads, _ = tf.clip_by_global_norm(grads, 40.0)
-    train_opt = optimizer.apply_gradients(zip(grads, variables))
+    # grads, variables = zip(*optimizer.compute_gradients(train_total_loss))
+    # grads, _ = tf.clip_by_global_norm(grads, 40.0)
+    # train_opt = optimizer.apply_gradients(zip(grads, variables))
 
     # mask_optimizer = tf.train.AdamOptimizer(args.mask_ratio * args.initlr)
     # train_mask_opt = mask_optimizer.minimize(train_mask_loss + args.weight_decay * train_decay_loss)
@@ -317,6 +318,22 @@ def main():
     # if args.trunk == 'resnet50' or args.trunk == 'resnet18':
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
 
+<<<<<<< HEAD
+    # mask_optimizer = tf.train.AdamOptimizer(args.mask_ratio * args.initlr)
+    # train_mask_opt = mask_optimizer.minimize(train_mask_loss + args.weight_decay * train_decay_loss)
+    # label_optimizer = tf.train.AdamOptimizer(args.initlr)
+    # train_label_opt = label_optimizer.minimize(train_label_loss + args.weight_decay * train_decay_loss)
+    # coin_flip = tf.random_uniform([1],minval=0, maxval=1, dtype=tf.float32)
+    # opts = tf.convert_to_tensor([])
+    # train_opt = tf.select(tf.greater(tf.random_uniform([minval=min_jettering,maxval=max_jettering,
+                                                                        # dtype=tf.int32], ))
+
+
+    # if args.trunk == 'resnet50' or args.trunk == 'resnet18':
+    sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
+
+=======
+>>>>>>> e5b1003a68b7f77ed7557fd61388771e74f88a48
     model_name = gen_name('pretrain_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.weight_decay)
 
     summary_writer = tf.summary.FileWriter(args.tfboard_path +'/'+model_name, graph=tf.get_default_graph())
@@ -339,11 +356,19 @@ def main():
     # import pdb; pdb.set_trace()
     val_pos_img_viz_r = tf.cast(val_pos_mask, tf.float32) * 255
     val_pos_img_viz = tf.stack([val_pos_img_viz_r, val_pos_img_g, val_pos_img_b], axis=-1)
+<<<<<<< HEAD
 
     # import pdb; pdb.set_trace()
     val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * 255
     val_pos_img_pred_viz = tf.stack([val_pos_img_pred_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
+=======
+
+    # import pdb; pdb.set_trace()
+    val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * 255
+    val_pos_img_pred_viz = tf.stack([val_pos_img_pred_r, val_pos_img_g, val_pos_img_b], axis=-1)
+
+>>>>>>> e5b1003a68b7f77ed7557fd61388771e74f88a48
 
     img_summ.append(tf.image_summary('val_pos_img', val_pos_img_viz, max_images=10))
     img_summ.append(tf.image_summary('val_pos_img_pred', val_pos_img_pred_viz, max_images=10))
