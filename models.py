@@ -57,92 +57,6 @@ def resnet_18_network(img_ph, is_training=False, reuse=False, scope=None):
     x = end_points['resnet_v1_18/block3/unit_1/bottleneck_v1']
     return x
 
-
-def vgg_network(img_ph, trainable=False, reuse=False):
-    with tf.variable_scope('vgg', reuse=reuse) as sc:
-        x = img_ph
-        # Collect outputs for conv2d, fully_connected and max_pool2d.
-        conv1_1W = var("conv1_1w", net_data['conv1_1'][0], trainable)
-        conv1_1b = var("conv1_1b", net_data['conv1_1'][1], trainable)
-        conv1_1in = conv(x, conv1_1W, conv1_1b, 3,3,64,1,1)
-        x = tf.nn.relu(conv1_1in)
-        
-        conv1_2W = var("conv1_2w", net_data['conv1_2'][0], trainable)
-        conv1_2b = var("conv1_2b", net_data['conv1_2'][1], trainable)
-        conv1_2in = conv(x, conv1_2W, conv1_2b, 3,3,64,1,1)
-        x = tf.nn.relu(conv1_2in)
-        x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
-        
-        conv2_1W = var("conv2_1w", net_data['conv2_1'][0], trainable)
-        conv2_1b = var("conv2_1b", net_data['conv2_1'][1], trainable)
-        conv2_1in = conv(x, conv2_1W, conv2_1b, 3,3,128,1,1)
-        x = tf.nn.relu(conv2_1in)
-        
-        conv2_2W = var("conv2_2w", net_data['conv2_2'][0], trainable)
-        conv2_2b = var("conv2_2b", net_data['conv2_2'][1], trainable)
-        conv2_2in = conv(x, conv2_2W, conv2_2b, 3,3,128,1,1)
-        x = tf.nn.relu(conv2_2in)
-        x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
-        
-        conv3_1W = var("conv3_1w", net_data['conv3_1'][0], trainable)
-        conv3_1b = var("conv3_1b", net_data['conv3_1'][1], trainable)
-        conv3_1in = conv(x, conv3_1W, conv3_1b, 3,3,256,1,1)
-        x = tf.nn.relu(conv3_1in)
-        
-        conv3_2W = var("conv3_2w", net_data['conv3_2'][0], trainable)
-        conv3_2b = var("conv3_2b", net_data['conv3_2'][1], trainable)
-        conv3_2in = conv(x, conv3_2W, conv3_2b, 3,3,256,1,1)
-        x = tf.nn.relu(conv3_2in)
-        
-        
-        conv3_3W = var("conv3_3w", net_data['conv3_3'][0], trainable)
-        conv3_3b = var("conv3_3b", net_data['conv3_3'][1], trainable)
-        conv3_3in = conv(x, conv3_3W, conv3_3b, 3,3,256,1,1)
-        x = tf.nn.relu(conv3_3in)
-        x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
-        
-        conv4_1W = var("conv4_1w", net_data['conv4_1'][0], trainable)
-        conv4_1b = var("conv4_1b", net_data['conv4_1'][1], trainable)
-        conv4_1in = conv(x, conv4_1W, conv4_1b, 3,3,512,1,1)
-        x = tf.nn.relu(conv4_1in)
-        
-        conv4_2W = var("conv4_2w", net_data['conv4_2'][0], trainable)
-        conv4_2b = var("conv4_2b", net_data['conv4_2'][1], trainable)
-        conv4_2in = conv(x, conv4_2W, conv4_2b, 3,3,512,1,1)
-        x = tf.nn.relu(conv4_2in)
-        
-        conv4_3W = var("conv4_3w", net_data['conv4_3'][0], trainable)
-        conv4_3b = var("conv4_3b", net_data['conv4_3'][1], trainable)
-        conv4_3in = conv(x, conv4_3W, conv4_3b, 3,3,512,1,1)
-        x = tf.nn.relu(conv4_3in)
-        x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
-        
-        return x
-
-
-def shared_trunk(x, reuse=False, dropout=1.0):
-    with tf.variable_scope('shared_trunk', reuse=reuse):
-        conv1w = new_var('conv1w', [1,1,512,512])
-        conv1b = new_var('conv1b', [512])
-        x = conv(x, conv1w, conv1b, 1,1,512,1,1, 'VALID')
-        x = tf.nn.relu(x)
-        # x = tf.nn.dropout(x, dropout)
-
-        conv2w = new_var('conv2w', [5,5,512,128])
-        conv2b = new_var('conv2b', [128])
-        x = conv(x, conv2w, conv2b, 5,5,128,1,1, 'VALID')
-        x = tf.nn.relu(x)
-        # x = tf.nn.dropout(x, dropout)
-
-        x = tf.reshape(x, [-1,128*10*10])
-        fc1w = new_var('fc1w', [128*10*10,512])
-        fc1b = new_var('fc1b', [512])
-        x = tf.matmul(x, fc1w) + fc1b
-        x = tf.nn.relu(x)
-        # x = tf.nn.dropout(x, dropout)
-
-    return x
-
 def shared_trunk_resnet(x, reuse=False, dropout=1.0):
     with tf.variable_scope('shared_trunk', reuse=reuse):
         # import pdb; pdb.set_trace()
@@ -158,24 +72,19 @@ def shared_trunk_resnet(x, reuse=False, dropout=1.0):
 
     return x
 
-    
-def rebuild_share_trunk(x, reuse = False):
+def rebuild_shared_trunk_resnet(x, reuse=False, dropout=1.0):
     with tf.variable_scope('shared_trunk', reuse=reuse):
-        conv1w = new_var('conv1_weights', [1,1,512,512])
-        conv1b = new_var('conv1_bias', [512])
-        x = conv(x, conv1w, conv1b, 1,1,512,1,1, 'VALID')
-        x = tf.nn.relu(x)
-
-        conv2w = new_var('conv2_weights', [5,5,512,128])
-        conv2b = new_var('conv2_bias', [128])
-        x = conv(x, conv2w, conv2b, 5,5,128,1,1, 'VALID')
+        # import pdb; pdb.set_trace()
+        conv1w = new_var('conv1_weights', [1,1,1024,128])
+        conv1b = new_var('conv1_bias', [128])
+        x = conv(x, conv1w, conv1b, 1,1,128,1,1, 'VALID')
         x = tf.nn.relu(x)
 
         fc1w = new_var('fc1_weights', [128*10*10,512])
         fc1b = new_var('fc1_bias', [512])
 
-
     return x, [fc1w, fc1b]
+    
 
 def seg_head(x, reuse, dropout=1.0):
     with tf.variable_scope('segmentation_head', reuse=reuse):
@@ -215,45 +124,83 @@ def rebuild_score_head(reuse = False):
         fcob = new_var('fco_bias', [2])
     return [fc1w, fc1b, fcow, fcob]
     
-def rebuild_network(img_ph, model_path, debug = False):
-    #build vgg, no change needed
-    vgg_out = vgg_network(img_ph)
-    conv_out, share_truck_vars = rebuild_share_trunk(vgg_out)
+def rebuild_network(img_ph, model_path, model_type, debug = False):
+    sess = tf.Session()
+    support_model_type = ['resnet18', 'resnet50', 'VGG']
+    assert model_type in support_model_type
+    rebuild_shared_trunk = rebuild_shared_trunk_resnet
+    if model_type == 'resnet18':
+        feature_net = resnet_18_network
+    elif model_type == 'resnet50':
+        feature_net = resnet_50_network
+    elif model_type == 'VGG':
+        print("VGG has been purged")
+        raise NotImplemetedError
+    #build feature network, no change needed
+    feature_net_out = feature_net(img_ph, is_training = False)
+    
+    conv_out, share_truck_vars = rebuild_shared_trunk(feature_net_out)
     seg_head_vars = rebuild_seg_head()
     score_head_vars = rebuild_score_head()
-    #load pretrained weightss
+    #load pretrained weights
     model_saver = tf.train.Saver()
     model_saver.restore(sess, model_path)
     
     #make the model fully convolutionary
     conv_out = Fc2Conv(conv_out, *share_truck_vars)
-    conv_out = tf.nn.relu(conv_out) #shared trunk
-    
+
     seg_out = Fc2Conv(conv_out, *seg_head_vars)#out is 1x1x6272
     seg_out = tf.reshape(seg_out, [-1,56,56,2])
-    seg_out = tf.image.resize_images(seg_out, [224,224])
+    seg_out = tf.image.resize_images(seg_out, [112,112])
+    msk = tf.nn.softmax(seg_out)
     
     score_out = Fc2Conv(conv_out, *score_head_vars[:2])
     score_out = tf.nn.relu(score_out)
     score_out = Fc2Conv(score_out, *score_head_vars[2:]) #1*1*1
+    score = tf.nn.softmax(score_out)
+    
     print("finish building graph, all operator have been convolized")
-    def model_out(image):
+    def model_out(image, batch = False):
         normalized_image = image/255.0 - 0.5
         if debug:
-            return sess.run([seg_out, score_out, conv_out,vgg_out], feed_dict = {img_ph:[normalized_image]})
-        return sess.run([seg_out, score_out], feed_dict = {img_ph:[normalized_image]})
+            return sess.run([seg_out, score_out, conv_out,feature_net_out], feed_dict = {img_ph:[normalized_image]})
+        if batch:
+            data_in = normalized_image
+        else:
+            data_in = [normalized_image]
+        return sess.run([msk, score], feed_dict = {img_ph:data_in})
     return model_out, sess
     
-def build_vgg_network(img_ph, sess=None, trainable=True, dropout=1.0, reuse = False):
-    '''
-    https://arxiv.org/pdf/1603.08695.pdf
-    Head-C architecture
-    '''
-    x = vgg_network(img_ph, trainable=trainable, reuse=reuse)
-    x = shared_trunk(x, reuse=reuse, dropout=dropout)
-    mask = seg_head(x, reuse=reuse, dropout=dropout)
-    score = score_head(x, reuse=reuse, dropout=dropout)
-    return mask, score
+def rebuild_original_network(img_ph, model_path, model_type, debug = False):
+    sess = tf.Session()
+    support_model_type = ['resnet18', 'resnet50', 'VGG']
+    assert model_type in support_model_type
+    if model_type == 'resnet18':
+        net = build_resnet18_network
+    elif model_type == 'resnet50':
+        net = build_resnet50_network
+    elif model_type == 'VGG':
+        print("VGG has been purged")
+        raise NotImplemetedError
+    #build feature network, no change needed
+    seg_out, score_out = net(img_ph, sess = sess, is_training = False)
+    model_saver = tf.train.Saver()
+    model_saver.restore(sess, model_path)
+    
+    msk = tf.nn.softmax(seg_out)
+    score = tf.nn.softmax(score_out)
+    
+    print("finish building original graph")
+    def model_out(image, batch = False):
+        normalized_image = image/255.0 - 0.5
+        if debug:
+            return sess.run([seg_out, score_out, conv_out,feature_net_out], feed_dict = {img_ph:[normalized_image]})
+        if batch:
+            data_in = normalized_image
+        else:
+            data_in = [normalized_image]
+        return sess.run([msk, score], feed_dict = {img_ph:data_in})
+    return model_out, sess
 
 def build_resnet50_network(img_ph, sess=None, reuse=False, is_training=True, dropout=1.0):
     x = resnet_50_network(img_ph, reuse=reuse, is_training=is_training)
@@ -283,53 +230,3 @@ def Fc2Conv(conv_out, FC_W, FC_b):
                                         [FC_W.get_shape().as_list()[-1]])
     conv_result = tf.nn.conv2d(conv_out, fConv_W, [1,1,1,1], "VALID")
     return tf.nn.bias_add(conv_result, FC_b)
-
-
-# Outdated... DO NOT USE
-
-# def score_network(x, reuse=False, dropout=1.0):
-#     with tf.variable_scope('scorer', reuse=reuse) as sc:
-#         x = tf.nn.max_pool(x, [1,2,2,1],[1,2,2,1],'VALID')
-#         x = tf.reshape(x, [-1, 512*7*7])
-#         fc1w = new_var('fc1w', [512*7*7,512])
-#         fc1b = new_var('fc1b',[512])
-#         x = tf.matmul(x, fc1w) + fc1b
-#         x = tf.nn.relu(x)
-#         x = tf.nn.dropout(x, dropout)
-        
-#         fc2w = new_var('fc2w', [512,1024])
-#         fc2b = new_var('fc2b',[1024])
-#         x = tf.matmul(x, fc2w) + fc2b
-#         x = tf.nn.relu(x)
-#         x = tf.nn.dropout(x, dropout)
-        
-#         fcow = new_var('fcow', [1024,2])
-#         fcob = new_var('fcob',[2])
-#         x = tf.matmul(x, fcow) + fcob
-#     return x
-
-
-# def seg_network(x, reuse=False, dropout=1.0):
-#     with tf.variable_scope('segmentation', reuse=reuse) as sc:
-#         conv1w = new_var('conv1w', [1,1,512,512])
-#         conv1b = new_var('conv1b', [512])
-#         x = conv(x, conv1w, conv1b, 1,1,512,1,1)
-#         x = tf.nn.relu(x)
-#         x = tf.nn.dropout(x, dropout)
-        
-#         x = tf.reshape(x, [-1,512*14*14])
-        
-#         fc1w = new_var('fc1w', [512*14*14,512])
-#         fc1b = new_var('fc1b',[512])
-#         x = tf.matmul(x, fc1w) + fc1b
-#         x = tf.nn.relu(x)
-#         x = tf.nn.dropout(x, dropout)
-        
-#         fcow = new_var('fcow', [512,56*56*2])
-#         fcob = new_var('fcob',[56*56*2])
-#         x = tf.matmul(x, fcow) + fcob
-        
-#         x = tf.reshape(x, [-1,56,56,2])
-#         x = tf.image.resize_images(x, [224,224])
-        
-#     return x
