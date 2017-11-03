@@ -130,6 +130,7 @@ def bottleneck(inputs,
 
 def resnet_v1(inputs,
               blocks,
+              background=None,
               num_classes=None,
               is_training=True,
               global_pool=True,
@@ -213,6 +214,11 @@ def resnet_v1(inputs,
             output_stride /= 4
           # print (net)
           net = resnet_utils.conv2d_same(net, 64, 7, stride=2, scope='conv1')
+
+          if background is not None:
+            background_out = resnet_utils.conv2d_same(background, 64, 7, stride=2, scope='conv1')
+            net = (net + background_out) / 2
+          
           # print (net)
           net = slim.max_pool2d(net, [3, 3], stride=2, scope='pool1')
           # print (net)
@@ -271,7 +277,8 @@ def resnet_v1_block(scope, base_depth, num_units, stride):
   }])
 
 
-def resnet_v1_18(inputs, 
+def resnet_v1_18(inputs,
+                 background=None,
                  num_classes=None,
                  is_training=True,
                  global_pool=True,
@@ -287,13 +294,14 @@ def resnet_v1_18(inputs,
       resnet_v1_block('block4', base_depth=512, num_units=2, stride=1),
   ]
 
-  return resnet_v1(inputs, blocks, num_classes, is_training,
+  return resnet_v1(inputs, blocks, background, num_classes, is_training,
                    global_pool=global_pool, output_stride=output_stride,
                    include_root_block=True, spatial_squeeze=spatial_squeeze,
                    reuse=reuse, scope=scope)
 
 
 def resnet_v1_50(inputs,
+                 background=None,
                  num_classes=None,
                  is_training=True,
                  global_pool=True,
@@ -308,7 +316,7 @@ def resnet_v1_50(inputs,
       resnet_v1_block('block3', base_depth=256, num_units=6, stride=2),
       resnet_v1_block('block4', base_depth=512, num_units=3, stride=1),
   ]
-  return resnet_v1(inputs, blocks, num_classes, is_training,
+  return resnet_v1(inputs, blocks, background, num_classes, is_training,
                    global_pool=global_pool, output_stride=output_stride,
                    include_root_block=True, spatial_squeeze=spatial_squeeze,
                    reuse=reuse, scope=scope)

@@ -44,16 +44,16 @@ def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="SAME", group=
         conv = tf.concat(3, output_groups)
     return tf.nn.bias_add(conv, biases)
 
-def resnet_50_network(img_ph, is_training=False, reuse=False, scope=None):
+def resnet_50_network(img_ph, background=None, is_training=False, reuse=False, scope=None, add_background=False):
     with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-      _, end_points = resnet_v1.resnet_v1_50(img_ph, reuse=reuse, is_training=is_training)
+      _, end_points = resnet_v1.resnet_v1_50(img_ph, background=background, reuse=reuse, is_training=is_training, add_background=add_background)
     x = end_points['resnet_v1_50/block3/unit_5/bottleneck_v1']
     return x
 
 
-def resnet_18_network(img_ph, is_training=False, reuse=False, scope=None):
+def resnet_18_network(img_ph, background=None, is_training=False, reuse=False, scope=None, add_background=False):
     with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-      _, end_points = resnet_v1.resnet_v1_18(img_ph, reuse=reuse, is_training=is_training)
+      _, end_points = resnet_v1.resnet_v1_18(img_ph, background=background, reuse=reuse, is_training=is_training, add_background=False)
     x = end_points['resnet_v1_18/block3/unit_1/bottleneck_v1']
     return x
 
@@ -202,8 +202,10 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False):
         return sess.run([msk, score], feed_dict = {img_ph:data_in})
     return model_out, sess
 
-def build_resnet50_network(img_ph, sess=None, reuse=False, is_training=True, dropout=1.0):
-    x = resnet_50_network(img_ph, reuse=reuse, is_training=is_training)
+def build_resnet50_network(img_ph, background=background, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
+    if not add_background:
+        background = None
+    x = resnet_50_network(img_ph, background=background, reuse=reuse, is_training=is_training)
     tmp_vars = set(tf.all_variables())
     if not reuse:
         saver = tf.train.Saver()
@@ -214,8 +216,10 @@ def build_resnet50_network(img_ph, sess=None, reuse=False, is_training=True, dro
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
     return mask, score
 
-def build_resnet18_network(img_ph, sess=None, reuse=False, is_training=True, dropout=1.0):
-    x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
+def build_resnet18_network(img_ph, background=background, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
+    if not add_background:
+        background = None
+    x = resnet_18_network(img_ph, background=background, reuse=reuse, is_training=is_training)
     x = shared_trunk_resnet(x, reuse=reuse, dropout=dropout)
     mask = seg_head(x, reuse=reuse, dropout=dropout)
     score = score_head(x, reuse=reuse, dropout=dropout)
