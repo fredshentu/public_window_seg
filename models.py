@@ -205,7 +205,7 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False):
         return sess.run([msk, score], feed_dict = {img_ph:data_in})
     return model_out, sess
 
-def build_resnet50_network(img_ph, background=background, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
+def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
     x = resnet_50_network(img_ph, reuse=reuse, is_training=is_training)
     if add_background:
         y = resnet_50_network(background, reuse=True, is_training=is_training)
@@ -221,7 +221,7 @@ def build_resnet50_network(img_ph, background=background, sess=None, reuse=False
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
     return mask, score
 
-def build_resnet18_network(img_ph, background=background, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
+def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
     x = resnet_18_network(img_ph, background=background, reuse=reuse, is_training=is_training)
     if add_background:
         y = resnet_50_network(background, reuse=True, is_training=is_training)
