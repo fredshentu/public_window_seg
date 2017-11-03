@@ -45,9 +45,9 @@ def main():
     parser.add_argument('--save_freq', type=int, default=1000)
     parser.add_argument('--gpu_ratio', type=float, default=0.99)
 
-    parser.add_argument('--mask_ratio', type=float, default=32.0)
+    parser.add_argument('--mask_ratio', type=float, default=16.0)
     parser.add_argument('--weight_decay', type=float, default=5e-4)
-    parser.add_argument('--pos_max', type=int, default=23)
+    parser.add_argument('--pos_max', type=int, default=24)
     parser.add_argument('--neg_min', type=int, default=46)
     parser.add_argument('--initlr', type=float, default=1e-3)
     parser.add_argument('--num_itr', type=int, default=100000)
