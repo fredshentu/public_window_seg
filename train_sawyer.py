@@ -11,23 +11,19 @@ from data_loader import inputs_poking, inputs_sawyer_data
 slim = tf.contrib.slim
 
 
-scales = tf.convert_to_tensor([2**(-0.25),1.0, 2**(0.25), 2**(0.5), 2**(-0.5), 2**(0.75), 2**(-0.75), 2**(1.), 2**(-1.)])
-jetter_length = None
-
-# def ge
-
 def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay, lr_factor):
     return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f_lr_factor%.2f' % (prefix, \
                             trunk, ratio, pos_max, neg_min, decay, lr_factor)
 
 
 def get_lr(timestep, factor = 1):
-    if timestep <= 30000:
-        return 1e-3 * factor
-    elif timestep <= 60000:
-        return 5e-4 * factor
-    else:
-        return 1e-4 * factor
+    return 1e-3
+    # if timestep <= 30000:
+    #     return 1e-3 * factor
+    # elif timestep <= 60000:
+    #     return 5e-4 * factor
+    # else:
+    #     return 1e-4 * factor
 
 
 def main():
@@ -47,8 +43,8 @@ def main():
     parser.add_argument('--gpu_ratio', type=float, default=0.99)
     parser.add_argument('--lr_factor', type=float, default=1)
     parser.add_argument('--mask_ratio', type=float, default=32)
-    parser.add_argument('--pos_max', type=int, default=23)
-    parser.add_argument('--neg_min', type=int, default=46)
+    parser.add_argument('--pos_max', type=int, default=22)
+    parser.add_argument('--neg_min', type=int, default=66)
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--num_itr', type=int, default=200000)
     parser.add_argument('--trunk', type=str, choices=['resnet50', 'resnet18'], default='resnet18')
@@ -56,8 +52,6 @@ def main():
 
     args = parser.parse_args()
 
-    global jetter_length
-    jetter_length = tf.convert_to_tensor([(0, args.pos_max), (args.neg_min, 96), (0, 96), (96,120)])
 
     train_set_old_names = list([args.train_set_path_old + '/' + l for l in os.listdir(args.train_set_path_old)])
     train_set_new_names = list([args.train_set_path_new + '/' + l for l in os.listdir(args.train_set_path_new)])
@@ -156,22 +150,7 @@ def main():
 
     optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
     train_opt = slim.learning.create_train_op(train_total_loss, optimizer, clip_gradient_norm=40.0)
-    # optimizer = tf.train.AdamOptimizer(args.initlr)
-    # grads, variables = zip(*optimizer.compute_gradients(train_total_loss))
-    # grads, _ = tf.clip_by_global_norm(grads, 40.0)
-    # train_opt = optimizer.apply_gradients(zip(grads, variables))
-
-    # mask_optimizer = tf.train.AdamOptimizer(args.mask_ratio * args.initlr)
-    # train_mask_opt = mask_optimizer.minimize(train_mask_loss + args.weight_decay * train_decay_loss)
-    # label_optimizer = tf.train.AdamOptimizer(args.initlr)
-    # train_label_opt = label_optimizer.minimize(train_label_loss + args.weight_decay * train_decay_loss)
-    # coin_flip = tf.random_uniform([1],minval=0, maxval=1, dtype=tf.float32)
-    # opts = tf.convert_to_tensor([])
-    # train_opt = tf.select(tf.greater(tf.random_uniform([minval=min_jettering,maxval=max_jettering,
-                                                                        # dtype=tf.int32], ))
-
-
-    # if args.trunk == 'resnet50' or args.trunk == 'resnet18':
+    
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
 
     model_name = gen_name('train_sgd', args.mask_ratio, args.pos_max, args.neg_min, \
@@ -218,11 +197,7 @@ def main():
 
 
     for timestep in range(args.num_itr):
-        # coin_val = sess.run(coin_flip)
-        # if coin_val > 0.5:
-        #     train_opt = train_mask_opt
-        # else:
-        #     train_opt = train_label_opt
+ 
 
         if timestep % args.log_freq == 0:
             print ("Start itr {}".format(timestep))

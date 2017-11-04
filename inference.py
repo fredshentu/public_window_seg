@@ -26,6 +26,8 @@ def flat_diff(tensor1, tensor2):
         return np.sum(np.square(tensor1 - tensor2))
         
 def iou(mask1, mask2):
+    if np.sum(np.logical_or(mask1, mask2)) == 0:
+        return 10000.0
     return np.sum(np.logical_and(mask1, mask2)) / np.sum(np.logical_or(mask1, mask2))
     
 def debug(model_path):
@@ -104,6 +106,10 @@ class small_window():
         self.stride = stride
     def __gt__(self, small_window2):
         return self.score > small_window2.score
+    def score_map_help(self):
+        real_x = int(half_input_size/self.scale + self.pos_x*self.stride/self.scale)
+        real_y = int(half_input_size/self.scale + self.pos_y*self.stride/self.scale)
+        return self.score, real_x, real_y
     def generate_full_size_msk(self, origin_img, highlight_bond = False):
         img_shape = np.array(origin_img.shape[:2])
         result = np.zeros(img_shape + [200,200])
@@ -128,8 +134,8 @@ def cut_img(img, center_x, center_y, half_size):
 
 class forward_pass():
     def __init__(self, model_path, model_type, stride = 16, debug = False):
-        self.scales = [2**(i*0.25 - 0.5) for i in range(7)]
-        
+        self.scales = [2**(i*0.25 - 1.25) for i in range(7)]
+        self.debug = debug
         if not debug:
             img_ph = tf.placeholder(tf.float32, [None, None, None, 3])
             self.model_out, self.sess = rebuild_network(img_ph, model_path, model_type)
@@ -144,15 +150,20 @@ class forward_pass():
         self.sorted_small_windows = None
         self.img_in = None
         self.stride = stride
-    def msk_cut_score_NMS(self, score_tr = 0.99, nms_tr = 0.4):
+    def msk_cut_score_NMS(self, score_tr = 0.99, nms_tr = 0.4, firstn  = None):
         obj_small_windows = []
         for small_window in reversed(self.sorted_small_windows):
             obj_small_windows.append(small_window)
             if small_window.score < score_tr:
                 break
-        return self.NMS(obj_small_windows, nms_tr = nms_tr)
-        
-    def NMS(self, sorted_small_windows, nms_tr = 0.4):
+        return self.NMS(obj_small_windows, nms_tr = nms_tr,firstn = None)
+    def score_heatmap(self):
+        result_score_map = np.zeros_like(self.img_in[:,:,0]).astype(np.float32)
+        for small_w in self.sorted_small_windows:
+            score, real_x, real_y = small_w.score_map_help()
+            result_score_map[real_y-2:real_y+1, real_x-2:real_x+1] = score
+        return result_score_map
+    def NMS(self, sorted_small_windows, nms_tr = 0.4, firstn = None):
         result = [sorted_small_windows[0].generate_full_size_msk(self.img_in)] #list of class small_window
         for w in sorted_small_windows[1:]:
             new_full_size_msk = w.generate_full_size_msk(self.img_in)
@@ -161,14 +172,16 @@ class forward_pass():
                 max_iou = max(max_iou, iou(s, new_full_size_msk))
             if max_iou < nms_tr:
                 result.append(new_full_size_msk)
-        return result
-    def compute_multi_scale_slicing_window(self, img_in, msk_thr = 0.5):
+        if (firstn is not None) and len(result) > firstn:
+            return result[:firstn]
+        else:
+            return result
+    def compute_multi_scale_slicing_window(self, img_in, msk_thr = 0.6):
         #for fair comparison, stride is 16 as well
         self.img_in = img_in.copy()
         small_window_list = []
         for scale in self.scales:
-            
-            print("scale {}".format(scale))
+            # print("scale {}".format(scale))
             scaled_img = imresize(img_in, [int(img_in.shape[0]*scale),int(img_in.shape[1]*scale)])
             scaled_img_hw = scaled_img.shape[:2]
             w_range = (scaled_img_hw[1]-half_input_size*2)//self.stride + 1
@@ -214,10 +227,13 @@ class forward_pass():
         self.sorted_small_windows = small_window_list
         return small_window_list
     def compute_multiscale_masks(self, img_in, msk_thr = 0.5):
+        if self.debug:
+            print("debug model, only support caonoical slicing window model")
+            raise NotImplementedError
         self.img_in = img_in.copy()
         small_window_list = []
         for scale in self.scales:
-            print("scale {}".format(scale))
+            # print("scale {}".format(scale))
             scaled_img = imresize(img_in, [int(img_in.shape[0]*scale),int(img_in.shape[1]*scale)])
             scaled_img_hw = scaled_img.shape[:2]
             msk, score = self.model_out(scaled_img)

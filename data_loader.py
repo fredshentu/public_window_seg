@@ -141,11 +141,12 @@ def read_decode_negative_example(filename_queue, obs_shape,jetter_length):
     return image, mask, 0, background
 
 def inputs_poking(filenames, pos_max, neg_min, obs_shape = [240,240,4], train=True, \
+
                 batch_size=16, num_epochs = None, positive = True, viz=False):
-    jetter_length = tf.convert_to_tensor([(0, pos_max), (neg_min, 64), (0, 64), (64, 90)])
+    jetter_length = tf.convert_to_tensor([(0, pos_max), (neg_min, 90), (0, 90), (64, 90)])
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
-                filenames, num_epochs=num_epochs)
+                filenames, num_epochs=num_epochs, shuffle = True)
         if positive:
             image, mask, score, background = read_decode_positive_example(filename_queue, obs_shape, jetter_length)
         
@@ -200,7 +201,7 @@ def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = 
     random_index = tf.random_uniform(
                             [1],
                             minval=0,
-                            maxval=9,
+                            maxval=8,
                             dtype=tf.int32)[0]
                             
     crop_size = scales[random_index] * 112
@@ -313,13 +314,13 @@ def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_
     
     image = tf.image.resize_images(image, [224,224])
     mask = tf.image.resize_images(mask, [224,224])
-    
+
     return image, mask, 1, background
 
 
 def inputs_sawyer_data(filenames, mode, pos_max, neg_min,train=True, batch_size=12, num_epochs = None, viz=False):
-    jetter_length = tf.cast(tf.convert_to_tensor([(0, pos_max), (neg_min, 64), (0, 64), (64, 90)]), tf.float32)
-    
+    jetter_length = tf.cast(tf.convert_to_tensor([(0, pos_max), (neg_min, 90), (0, 90), (64, 90)]), tf.float32)
+
     assert (mode in set(["positive", "negative", "negative_from_positive"]))
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
