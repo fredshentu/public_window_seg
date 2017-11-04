@@ -159,7 +159,8 @@ def inputs_poking(filenames, pos_max, neg_min, obs_shape = [240,240,4], train=Tr
         else:
             num_thread = 4
             queue_capacity = 100 if viz else 3000
-        image, mask,score, background = tf.train.shuffle_batch([image, mask, score, background], 
+
+        image, mask, score, background = tf.train.shuffle_batch([image, mask, score, background], 
                                 min_after_dequeue=1000 , \
                                 batch_size = batch_size, \
                                 num_threads = num_thread,\

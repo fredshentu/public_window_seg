@@ -5,6 +5,8 @@ import numpy as np
 scales = tf.convert_to_tensor([2**(-0.25),1.0, 2**(0.25), 2**(0.5), 2**0.75, 2**(-0.5), 2**(-0.75), \
                                             2**(-1.0),2**(1.0)])
 
+inpSize = 192
+maskSize = 112
 
 def crop_data(data, xc, yc, side):
     data = tf.image.crop_to_bounding_box(data, yc-side/2.0, xc-side/2.0, side , side)
@@ -44,4 +46,6 @@ def pos_score_sampling_poking(filename_queue, output_shape):
     maxDim = center_max_axis[2]
 
     scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    scale = scale * (inpSize / maxDim)
+    side = input
 
