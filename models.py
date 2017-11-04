@@ -44,16 +44,16 @@ def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="SAME", group=
         conv = tf.concat(3, output_groups)
     return tf.nn.bias_add(conv, biases)
 
-def resnet_50_network(img_ph, background=None, is_training=False, reuse=False, scope=None, add_background=False):
+def resnet_50_network(img_ph, background=None, is_training=False, reuse=False, scope=None):
     with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-      _, end_points = resnet_v1.resnet_v1_50(img_ph, background=background, reuse=reuse, is_training=is_training, add_background=add_background)
+      _, end_points = resnet_v1.resnet_v1_50(img_ph, reuse=reuse, is_training=is_training)
     x = end_points['resnet_v1_50/block3/unit_5/bottleneck_v1']
     return x
 
 
-def resnet_18_network(img_ph, background=None, is_training=False, reuse=False, scope=None, add_background=False):
+def resnet_18_network(img_ph, background=None, is_training=False, reuse=False, scope=None):
     with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-      _, end_points = resnet_v1.resnet_v1_18(img_ph, background=background, reuse=reuse, is_training=is_training, add_background=False)
+      _, end_points = resnet_v1.resnet_v1_18(img_ph, reuse=reuse, is_training=is_training)
     x = end_points['resnet_v1_18/block3/unit_1/bottleneck_v1']
     return x
 
@@ -222,9 +222,9 @@ def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_t
     return mask, score
 
 def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
-    x = resnet_18_network(img_ph, background=background, reuse=reuse, is_training=is_training)
+    x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
     if add_background:
-        y = resnet_50_network(background, reuse=True, is_training=is_training)
+        y = resnet_18_network(background, reuse=True, is_training=is_training)
         x = tf.concat([x, y], axis=-1)
     x = shared_trunk_resnet(x, reuse=reuse, dropout=dropout, add_background=add_background)
     mask = seg_head(x, reuse=reuse, dropout=dropout)
