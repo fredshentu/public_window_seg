@@ -183,13 +183,19 @@ def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = 
           # Defaults are not specified since both keys are required.
           features={
                   'img': tf.FixedLenFeature([], tf.string),
+                  'background' : tf.FixedLenFeature([], tf.string), 
           })
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
-    background = tf.transpose(tf.gather(tf.transpose(img, [2,0,1]), [0,1,2]), [1,2,0])
     img = tf.pad(img, [[200,200],[200,200],[0,0]])
+
+    background = tf.reshape(background, [160,160,3])
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.cast(background, tf.float32)
+    background = (background/255.0) - 0.5
+
     random_index = tf.random_uniform(
                             [1],
                             minval=0,
@@ -223,12 +229,17 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, jetter_length
           features={
                   'img': tf.FixedLenFeature([], tf.string),
                   'mask':tf.FixedLenFeature([], tf.string),
+                  'background': tf.FixedLenFeature([], tf.string),
           })
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
-    background = tf.transpose(tf.gather(tf.transpose(img, [2,0,1]), [0,1,2]), [1,2,0])
+    
+    background = tf.reshape(background, [160,160,3])
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.cast(background, tf.float32)
+    background = (background/255.0) - 0.5
 
     mask = tf.decode_raw(features['mask'],tf.uint8)
     mask = tf.cast(mask, tf.float32)
@@ -275,7 +286,12 @@ def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
-    background = tf.transpose(tf.gather(tf.transpose(img, [2,0,1]), [0,1,2]), [1,2,0])
+    
+    background = tf.reshape(background, [160,160,3])
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.cast(background, tf.float32)
+    background = (background/255.0) - 0.5
+    
     mask = tf.decode_raw(features['mask'],tf.uint8)
     mask = tf.cast(mask, tf.float32)
     mask = tf.reshape(mask, [448,448,1])

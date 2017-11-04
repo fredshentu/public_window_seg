@@ -174,11 +174,11 @@ def main():
     img_summ = []
     val_pos_img_r, val_pos_img_g, val_pos_img_b = tf.unstack(tf.image.resize_images((val_pos_img+0.5)*255.0, [112, 112]), axis=-1)
     # import pdb; pdb.set_trace()
-    val_pos_img_viz_r = tf.cast(val_pos_mask, tf.float32) * 255
+    val_pos_img_viz_r = tf.cast(val_pos_mask, tf.float32) * val_pos_img_r
     val_pos_img_viz = tf.stack([val_pos_img_viz_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
     # import pdb; pdb.set_trace()
-    val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * 255
+    val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * val_pos_img_r
     val_pos_img_pred_viz = tf.stack([val_pos_img_pred_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
 
