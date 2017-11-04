@@ -214,6 +214,7 @@ def resnet_v1(inputs,
             output_stride /= 4
           # print (net)
           net = resnet_utils.conv2d_same(net, 64, 7, stride=2, scope='conv1')
+          # import pdb; pdb.set_trace()
 
           if background is not None:
             background_out = resnet_utils.conv2d_same(background, 64, 7, stride=2, scope='conv1')

@@ -75,7 +75,7 @@ def subsample(inputs, factor, scope=None):
     return slim.max_pool2d(inputs, [1, 1], stride=factor, scope=scope)
 
 
-def conv2d_same(inputs, num_outputs, kernel_size, stride, rate=1, scope=None):
+def conv2d_same(inputs, num_outputs, kernel_size, stride, rate=1, scope=None, reuse=False):
   """Strided 2-D convolution with 'SAME' padding.
 
   When stride > 1, then we do explicit zero-padding, followed by conv2d with
@@ -141,6 +141,8 @@ def conv2d_same(inputs, num_outputs, kernel_size, stride, rate=1, scope=None):
   #                 [[0, 0], [pad_top, pad_bottom], [pad_left, pad_right], [0, 0]], mode='SYMMETRIC')
   # return slim.conv2d(inputs, num_outputs, kernel_size, stride=stride,
   #                    rate=rate, padding='VALID', scope=scope)
+
+  # import 
 
   kernel_size_effective = kernel_size + (kernel_size - 1) * (rate - 1)
   pad_total = kernel_size_effective - 1

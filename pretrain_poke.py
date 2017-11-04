@@ -38,8 +38,8 @@ def main():
 
     parser.add_argument('--train_set_path', type=str, default='/media/icm_data/poke_nlc_training_new')
     parser.add_argument('--val_set_path', type=str, default='/media/icm_data/poke_nlc_val_new')
-    parser.add_argument('--tfmodel_path', type=str, default='/home/fred/Desktop/resnet_seg/models')
-    parser.add_argument('--tfboard_path', type=str, default='/home/fred/Desktop/resnet_seg/boards')
+    parser.add_argument('--tfmodel_path', type=str, default='/media/4tb/dian/models')
+    parser.add_argument('--tfboard_path', type=str, default='/media/4tb/dian/boards')
 
     parser.add_argument('--log_freq', type=int, default=50)
     parser.add_argument('--save_freq', type=int, default=1000)
@@ -154,7 +154,7 @@ def main():
     # if args.trunk == 'resnet50' or args.trunk == 'resnet18':
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
 
-    model_name = gen_name('pretrain_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.background, args.weight_decay)
+    model_name = gen_name('pretrain_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.add_background, args.weight_decay)
 
     summary_writer = tf.summary.FileWriter(args.tfboard_path +'/'+model_name, graph=tf.get_default_graph())
     model_saver = tf.train.Saver()
