@@ -69,8 +69,7 @@ def main():
     train_pos_img_poking, train_pos_mask_poking, train_pos_score_poking, train_pos_background_poking = inputs_poking(train_set_old_names,\
                                     args.pos_max, args.neg_min, batch_size = 4, positive=True)
     train_neg_img_poking, train_neg_mask_poking, train_neg_score_poking, train_neg_background_poking = \
-                    inputs_poking(train_set_old_names,\
-                                        args.pos_max, args.neg_min,  batch_size = 4, positive=False)
+                    inputs_poking(train_set_old_names, args.pos_max, args.neg_min,  batch_size = 4, positive=False)
     
     
     train_pos_imgs_sawyer, train_pos_masks_sawyer, train_pos_scores_sawyer, train_pos_background = \
