@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--num_itr', type=int, default=200000)
     parser.add_argument('--trunk', type=str, choices=['resnet50', 'resnet18'], default='resnet18')
+    parser.add_argument('--add_background', action='store_true')
 
     args = parser.parse_args()
 
@@ -59,20 +60,20 @@ def main():
 
     val_set_old_names = list([args.val_set_path + '/' + l for l in os.listdir(args.val_set_path)])
 
-    train_pos_img_poking, train_pos_mask_poking, train_pos_score_poking = inputs_poking(train_set_old_names,\
+    train_pos_img_poking, train_pos_mask_poking, train_pos_score_poking, train_pos_background_poking = inputs_poking(train_set_old_names,\
                                     args.pos_max, args.neg_min, batch_size = 4, positive=True)
-    train_neg_img_poking, train_neg_mask_poking, train_neg_score_poking = \
+    train_neg_img_poking, train_neg_mask_poking, train_neg_score_poking, train_neg_background_poking = \
                     inputs_poking(train_set_old_names,\
                                         args.pos_max, args.neg_min,  batch_size = 4, positive=False)
     
     
-    train_pos_imgs_sawyer, train_pos_masks_sawyer, train_pos_scores_sawyer = \
+    train_pos_imgs_sawyer, train_pos_masks_sawyer, train_pos_scores_sawyer, train_pos_background = \
                                     inputs_sawyer_data(train_set_new_pos_names, "positive", args.pos_max,\
                                                                     args.neg_min, batch_size = 12)
-    train_neg_imgs_sawyer, train_neg_masks_sawyer, train_neg_scores_sawyer = \
+    train_neg_imgs_sawyer, train_neg_masks_sawyer, train_neg_scores_sawyer, train_neg_background = \
                                     inputs_sawyer_data(train_set_new_neg_names, "negative", args.pos_max, \
                                                                     args.neg_min,batch_size = 6)
-    train_neg_from_pos_imgs, train_neg_from_pos_masks, train_neg_from_pos_scores = \
+    train_neg_from_pos_imgs, train_neg_from_pos_masks, train_neg_from_pos_scores, train_neg_from_pos_background = \
                                     inputs_sawyer_data(train_set_new_pos_names,"negative_from_positive", \
                                                                     args.pos_max, args.neg_min, batch_size = 6)
     
@@ -95,10 +96,18 @@ def main():
                                 train_neg_scores_sawyer,\
                                 train_neg_from_pos_scores])
 
+    train_background = tf.concat(0, [
+                                     train_pos_background_poking,
+                                     train_neg_background_poking,
+                                     train_pos_background,
+                                     train_neg_background,
+                                     train_neg_from_pos_background,
+                                    ])
+
     
-    val_pos_img, val_pos_mask, val_pos_score = inputs_poking(val_set_old_names,args.pos_max, \
+    val_pos_img, val_pos_mask, val_pos_score, val_pos_background = inputs_poking(val_set_old_names,args.pos_max, \
                                                     args.neg_min, positive=True, train=False)
-    val_neg_img, val_neg_mask, val_neg_score = inputs_poking(val_set_old_names, args.pos_max, \
+    val_neg_img, val_neg_mask, val_neg_score, val_neg_background = inputs_poking(val_set_old_names, args.pos_max, \
                                                     args.neg_min, positive=False, train=False)
     val_img = tf.concat(0, [val_pos_img, val_neg_img])
     val_mask = tf.concat(0, [val_pos_mask, val_neg_mask])
@@ -117,8 +126,8 @@ def main():
         model_saver = tf.train.Saver()
         model_saver.restore(sess, args.pretrain_path)
     elif args.trunk == 'resnet18':
-        train_pred_mask, train_pred_score = build_resnet18_network(train_img, sess=sess, reuse=False, is_training=True, dropout=0.5)
-        val_pred_mask, val_pred_score = build_resnet18_network(val_img, sess=sess, reuse=True, is_training=False, dropout=1.0)
+        train_pred_mask, train_pred_score = build_resnet18_network(train_img, background=train_background, sess=sess, reuse=False, is_training=True, dropout=0.5, add_background=args.add_background)
+        val_pred_mask, val_pred_score = build_resnet18_network(val_img, background=val_background, sess=sess, reuse=True, is_training=False, dropout=1.0, add_background=args.add_background)
         model_saver = tf.train.Saver()
         model_saver.restore(sess, args.pretrain_path)
 

@@ -16,8 +16,8 @@ from models import build_resnet50_network, build_resnet18_network
 from data_loader import inputs_poking
 slim = tf.contrib.slim
 
-def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay):
-    return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f' % (prefix, trunk, ratio, pos_max, neg_min, decay)
+def gen_name(prefix, ratio, pos_max, neg_min, trunk, background, decay):
+    return '%s_%s_lambda_%.2f_a_%d_b_%d_background_%s_decay_%.5f' % (prefix, trunk, ratio, pos_max, neg_min, background, decay)
 
 def new_var(name, shape, initializer):
     return tf.get_variable(name, shape=shape, initializer=initializer)
@@ -25,9 +25,9 @@ def new_var(name, shape, initializer):
 
 #resnet-18
 def get_lr(timestep):
-    if timestep <= 7500:
+    if timestep <= 30000:
         return 1e-3
-    elif timestep <= 15000:
+    elif timestep <= 60000:
         return 5e-4
     else:
         return 1e-4
@@ -38,20 +38,21 @@ def main():
 
     parser.add_argument('--train_set_path', type=str, default='/media/icm_data/poke_nlc_training_new')
     parser.add_argument('--val_set_path', type=str, default='/media/icm_data/poke_nlc_val_new')
-    parser.add_argument('--tfmodel_path', type=str, default='/home/fred/Desktop/resnet_seg/models')
-    parser.add_argument('--tfboard_path', type=str, default='/home/fred/Desktop/resnet_seg/boards')
+    parser.add_argument('--tfmodel_path', type=str, default='/media/4tb/dian/window_seg/models')
+    parser.add_argument('--tfboard_path', type=str, default='/media/4tb/dian/window_seg/boards')
 
     parser.add_argument('--log_freq', type=int, default=50)
     parser.add_argument('--save_freq', type=int, default=1000)
     parser.add_argument('--gpu_ratio', type=float, default=0.99)
 
-    parser.add_argument('--mask_ratio', type=float, default=32.0)
+    parser.add_argument('--mask_ratio', type=float, default=24.0)
     parser.add_argument('--weight_decay', type=float, default=5e-4)
-    parser.add_argument('--pos_max', type=int, default=23)
+    parser.add_argument('--pos_max', type=int, default=24)
     parser.add_argument('--neg_min', type=int, default=46)
     parser.add_argument('--initlr', type=float, default=1e-3)
     parser.add_argument('--num_itr', type=int, default=100000)
     parser.add_argument('--trunk', type=str, choices=['resnet50', 'resnet18', 'vgg'])
+    parser.add_argument('--add_background', action='store_true')
 
     args = parser.parse_args()
 
@@ -61,22 +62,25 @@ def main():
     train_set_names = list([args.train_set_path + '/' + l for l in os.listdir(args.train_set_path)])
     val_set_names = list([args.val_set_path + '/' + l for l in os.listdir(args.val_set_path)])
     
-    train_pos_img, train_pos_mask, train_pos_score = inputs_poking(train_set_names,\
+    train_pos_img, train_pos_mask, train_pos_score, train_pos_background = inputs_poking(train_set_names,\
                                         args.pos_max, args.neg_min, positive=True)
-    train_neg_img, train_neg_mask, train_neg_score = inputs_poking(train_set_names,\
+    train_neg_img, train_neg_mask, train_neg_score, train_neg_background = inputs_poking(train_set_names,\
                                         args.pos_max, args.neg_min, positive=False)
     train_img = tf.concat(0, [train_pos_img, train_neg_img])
     train_mask = tf.concat(0, [train_pos_mask, train_neg_mask])
     train_score = tf.concat(0, [train_pos_score, train_neg_score])
+    train_background = tf.concat(0, [train_pos_background, train_neg_background])
+
     learning_rate = tf.placeholder(tf.float32, [])
 
-    val_pos_img, val_pos_mask, val_pos_score = inputs_poking(val_set_names,args.pos_max, \
+    val_pos_img, val_pos_mask, val_pos_score, val_pos_background = inputs_poking(val_set_names,args.pos_max, \
                                                     args.neg_min, positive=True, train=False)
-    val_neg_img, val_neg_mask, val_neg_score = inputs_poking(val_set_names, args.pos_max, \
+    val_neg_img, val_neg_mask, val_neg_score, val_neg_background = inputs_poking(val_set_names, args.pos_max, \
                                                     args.neg_min, positive=False, train=False)
     val_img = tf.concat(0, [val_pos_img, val_neg_img])
     val_mask = tf.concat(0, [val_pos_mask, val_neg_mask])
     val_score = tf.concat(0, [val_pos_score, val_neg_score])
+    val_background = tf.concat(0, [val_pos_background, val_neg_background])
 
 
     train_set_names = list([args.train_set_path + '/' + l for l in os.listdir(args.train_set_path)])
@@ -88,15 +92,15 @@ def main():
 
     # Build network
     if args.trunk == 'vgg':
-        train_pred_mask, train_pred_score = build_vgg_network(train_img, dropout=0.5, reuse=False)
-        val_pred_mask, val_pred_score = build_vgg_network(val_img, dropout=1.0, reuse=True)
+        train_pred_mask, train_pred_score = build_vgg_network(train_img, background=train_background, dropout=0.5, reuse=False, add_background=args.add_background)
+        val_pred_mask, val_pred_score = build_vgg_network(val_img, background=val_background, dropout=1.0, reuse=True, add_background=args.add_background)
         sess.run(tf.initialize_all_variables())
     elif args.trunk == 'resnet50':
-        train_pred_mask, train_pred_score = build_resnet50_network(train_img, sess=sess, reuse=False, is_training=False, dropout=0.5)
-        val_pred_mask, val_pred_score = build_resnet50_network(val_img, sess=sess, reuse=True, is_training=False, dropout=1.0)
+        train_pred_mask, train_pred_score = build_resnet50_network(train_img, background=train_background, sess=sess, reuse=False, is_training=False, dropout=0.5, add_background=args.add_background)
+        val_pred_mask, val_pred_score = build_resnet50_network(val_img, background=val_background, sess=sess, reuse=True, is_training=False, dropout=1.0, add_background=args.add_background)
     elif args.trunk == 'resnet18':
-        train_pred_mask, train_pred_score = build_resnet18_network(train_img, sess=sess, reuse=False, is_training=True, dropout=0.5)
-        val_pred_mask, val_pred_score = build_resnet18_network(val_img, sess=sess, reuse=True, is_training=False, dropout=1.0)
+        train_pred_mask, train_pred_score = build_resnet18_network(train_img, background=train_background, sess=sess, reuse=False, is_training=True, dropout=0.5, add_background=args.add_background)
+        val_pred_mask, val_pred_score = build_resnet18_network(val_img, background=val_background, sess=sess, reuse=True, is_training=False, dropout=1.0, add_background=args.add_background)
         sess.run(tf.initialize_all_variables()) # Initialize ResNet params
 
     tmp_vars = set(tf.all_variables())
@@ -150,7 +154,7 @@ def main():
     # if args.trunk == 'resnet50' or args.trunk == 'resnet18':
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
 
-    model_name = gen_name('pretrain_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.weight_decay)
+    model_name = gen_name('pretrain_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.add_background, args.weight_decay)
 
     summary_writer = tf.summary.FileWriter(args.tfboard_path +'/'+model_name, graph=tf.get_default_graph())
     model_saver = tf.train.Saver()
@@ -170,11 +174,11 @@ def main():
     img_summ = []
     val_pos_img_r, val_pos_img_g, val_pos_img_b = tf.unstack(tf.image.resize_images((val_pos_img+0.5)*255.0, [112, 112]), axis=-1)
     # import pdb; pdb.set_trace()
-    val_pos_img_viz_r = tf.cast(val_pos_mask, tf.float32) * 255
+    val_pos_img_viz_r = tf.cast(val_pos_mask, tf.float32) * val_pos_img_r
     val_pos_img_viz = tf.stack([val_pos_img_viz_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
     # import pdb; pdb.set_trace()
-    val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * 255
+    val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * val_pos_img_r
     val_pos_img_pred_viz = tf.stack([val_pos_img_pred_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
 

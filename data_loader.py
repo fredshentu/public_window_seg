@@ -46,6 +46,7 @@ def read_decode_positive_example(filename_queue, obs_shape, jetter_length):
     center_max_axis = tf.reshape(center_max_axis, [3])
     data = tf.cast(features['data'], tf.float32)
     data = tf.reshape(data, obs_shape)
+    background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
     
     center_x = center_max_axis[0]
     center_y = center_max_axis[1]
@@ -74,7 +75,7 @@ def read_decode_positive_example(filename_queue, obs_shape, jetter_length):
     image, mask = crop_random_jettering(data, middle_offset_heigh, middle_offset_width,\
                             jettering_min, jettering_max, 224)
     
-    return image, mask,1
+    return image, mask , 1, background
 
 
 def read_decode_negative_example(filename_queue, obs_shape,jetter_length):
@@ -91,6 +92,9 @@ def read_decode_negative_example(filename_queue, obs_shape,jetter_length):
     center_max_axis = tf.reshape(center_max_axis, [3])
     data = tf.cast(features['data'], tf.float32)
     data = tf.reshape(data, obs_shape)
+    background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
+    # background = tf.image.resize_images()
+
     
     center_x = center_max_axis[0] 
     center_y = center_max_axis[1]
@@ -134,28 +138,29 @@ def read_decode_negative_example(filename_queue, obs_shape,jetter_length):
     image, mask = crop_random_jettering(data, middle_offset_heigh, middle_offset_width,\
                             jettering_min, jettering_max, 224)
 
-    return image, mask, 0
+    return image, mask, 0, background
 
 def inputs_poking(filenames, pos_max, neg_min, obs_shape = [240,240,4], train=True, \
-                batch_size=16, num_epochs = None, positive = True):
+
+                batch_size=16, num_epochs = None, positive = True, viz=False):
     jetter_length = tf.convert_to_tensor([(0, pos_max), (neg_min, 90), (0, 90), (64, 90)])
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
                 filenames, num_epochs=num_epochs, shuffle = True)
         if positive:
-            image, mask, score= read_decode_positive_example(filename_queue, obs_shape, jetter_length)
+            image, mask, score, background = read_decode_positive_example(filename_queue, obs_shape, jetter_length)
         
         else:
-            image, mask, score = read_decode_negative_example(filename_queue, obs_shape, jetter_length)
+            image, mask, score, background = read_decode_negative_example(filename_queue, obs_shape, jetter_length)
             
             
         if train:
             num_thread = 12
-            queue_capacity = 3000
+            queue_capacity = 100 if viz else 3000
         else:
             num_thread = 4
-            queue_capacity = 3000
-        image, mask,score = tf.train.shuffle_batch([image,mask,score], 
+            queue_capacity = 100 if viz else 3000
+        image, mask,score, background = tf.train.shuffle_batch([image, mask, score, background], 
                                 min_after_dequeue=1000 , \
                                 batch_size = batch_size, \
                                 num_threads = num_thread,\
@@ -166,8 +171,9 @@ def inputs_poking(filenames, pos_max, neg_min, obs_shape = [240,240,4], train=Tr
         downsampled_mask = tf.image.resize_images(mask, [112,112])
         downsampled_mask = (downsampled_mask + 1) / 2
         downsampled_mask = tf.cast(tf.transpose(downsampled_mask, [3,0,1,2])[0], tf.int32)
+        background = tf.image.resize_images(background, [160, 160])
 
-        return image, downsampled_mask, score
+        return image, downsampled_mask, score, background
         
         
 def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = [256,256]):
@@ -178,12 +184,20 @@ def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = 
           # Defaults are not specified since both keys are required.
           features={
                   'img': tf.FixedLenFeature([], tf.string),
+                  'background' : tf.FixedLenFeature([], tf.string), 
           })
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
     img = tf.pad(img, [[200,200],[200,200],[0,0]])
+
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.reshape(background, [160,160,3])
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.cast(background, tf.float32)
+    background = (background/255.0) - 0.5
+
     random_index = tf.random_uniform(
                             [1],
                             minval=0,
@@ -205,7 +219,9 @@ def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = 
     img = tf.image.random_flip_left_right(img)
     img = tf.image.resize_images(img, [224,224])
     
-    return img,tf.convert_to_tensor(np.zeros([224,224,1])), 0
+    return img,tf.convert_to_tensor(np.zeros([224,224,1])), 0, background
+
+
 def read_decode_negative_from_positive_sawyer_data(filename_queue, jetter_length, obs_shape = [256,256]):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
@@ -215,11 +231,19 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, jetter_length
           features={
                   'img': tf.FixedLenFeature([], tf.string),
                   'mask':tf.FixedLenFeature([], tf.string),
+                  'background': tf.FixedLenFeature([], tf.string),
           })
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
+    
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.reshape(background, [160,160,3])
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.cast(background, tf.float32)
+    background = (background/255.0) - 0.5
+
     mask = tf.decode_raw(features['mask'],tf.uint8)
     mask = tf.cast(mask, tf.float32)
     mask = tf.reshape(mask, [448,448,1])
@@ -248,7 +272,7 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, jetter_length
     image = tf.image.resize_images(image, [224,224])
     mask = tf.image.resize_images(mask, [224,224])
     
-    return image, mask, 0
+    return image, mask, 0, background
     
     
 def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_shape = [256,256]):
@@ -260,11 +284,19 @@ def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_
           features={
                   'img': tf.FixedLenFeature([], tf.string),
                   'mask':tf.FixedLenFeature([], tf.string),
+                  'background':tf.FixedLenFeature([], tf.string)
           })
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
+    
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.reshape(background, [160,160,3])
+    background = tf.decode_raw(features['background'], tf.uint8)
+    background = tf.cast(background, tf.float32)
+    background = (background/255.0) - 0.5
+    
     mask = tf.decode_raw(features['mask'],tf.uint8)
     mask = tf.cast(mask, tf.float32)
     mask = tf.reshape(mask, [448,448,1])
@@ -284,30 +316,32 @@ def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_
     
     image = tf.image.resize_images(image, [224,224])
     mask = tf.image.resize_images(mask, [224,224])
-    
-    return image, mask,1
-def inputs_sawyer_data(filenames, mode, pos_max, neg_min,train=True, batch_size=12, num_epochs = None):
+
+    return image, mask, 1, background
+
+
+def inputs_sawyer_data(filenames, mode, pos_max, neg_min,train=True, batch_size=12, num_epochs = None, viz=False):
     jetter_length = tf.cast(tf.convert_to_tensor([(0, pos_max), (neg_min, 90), (0, 90), (64, 90)]), tf.float32)
-    
+
     assert (mode in set(["positive", "negative", "negative_from_positive"]))
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
                 filenames, num_epochs=num_epochs, shuffle=True)
         if mode == "positive":
-            image, mask, score= read_decode_positive_example_sawyer_data(filename_queue,jetter_length)
+            image, mask, score, background = read_decode_positive_example_sawyer_data(filename_queue,jetter_length)
         
         elif mode == "negative":
-            image, mask, score = read_decode_negative_sawyer_data(filename_queue,jetter_length)
+            image, mask, score, background = read_decode_negative_sawyer_data(filename_queue,jetter_length)
         elif mode == "negative_from_positive":
-            image, mask, score = read_decode_negative_from_positive_sawyer_data(filename_queue,jetter_length)
+            image, mask, score, background = read_decode_negative_from_positive_sawyer_data(filename_queue,jetter_length)
         
         if train:
             num_thread = 20
-            queue_capacity = 3000
+            queue_capacity = 100 if viz else 3000
         else:
             num_thread = 4
-            queue_capacity = 3000
-        image, mask,score = tf.train.shuffle_batch([image,mask,score], 
+            queue_capacity = 100 if viz else 3000
+        image, mask, score, background = tf.train.shuffle_batch([image, mask, score, background], 
                                 min_after_dequeue=1000 , \
                                 batch_size = batch_size, \
                                 num_threads = num_thread,\
@@ -317,5 +351,6 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min,train=True, batch_size=
         
         mask = tf.image.resize_images(mask, [112,112])
         mask = tf.cast(tf.transpose(mask, [3,0,1,2])[0], tf.int32)
+        background = tf.image.resize_images(background, [160, 160])
         
-        return image, mask, score
+        return image, mask, score, background
