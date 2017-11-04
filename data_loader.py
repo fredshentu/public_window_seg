@@ -191,6 +191,7 @@ def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = 
     img = (img/255.0) - 0.5
     img = tf.pad(img, [[200,200],[200,200],[0,0]])
 
+    background = tf.decode_raw(features['background'], tf.uint8)
     background = tf.reshape(background, [160,160,3])
     background = tf.decode_raw(features['background'], tf.uint8)
     background = tf.cast(background, tf.float32)
@@ -236,6 +237,7 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, jetter_length
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
     
+    background = tf.decode_raw(features['background'], tf.uint8)
     background = tf.reshape(background, [160,160,3])
     background = tf.decode_raw(features['background'], tf.uint8)
     background = tf.cast(background, tf.float32)
@@ -281,12 +283,14 @@ def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_
           features={
                   'img': tf.FixedLenFeature([], tf.string),
                   'mask':tf.FixedLenFeature([], tf.string),
+                  'background':tf.FixedLenFeature([], tf.string)
           })
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
     
+    background = tf.decode_raw(features['background'], tf.uint8)
     background = tf.reshape(background, [160,160,3])
     background = tf.decode_raw(features['background'], tf.uint8)
     background = tf.cast(background, tf.float32)
