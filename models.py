@@ -209,7 +209,7 @@ def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_t
     x = resnet_50_network(img_ph, reuse=reuse, is_training=is_training)
     if add_background:
         y = resnet_50_network(background, reuse=True, is_training=is_training)
-        x = tf.concat([x, y], axis=-1)
+        x = tf.concat(3, [x, y])
 
     tmp_vars = set(tf.all_variables())
     if not reuse:
@@ -225,7 +225,7 @@ def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, is_t
     x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
     if add_background:
         y = resnet_18_network(background, reuse=True, is_training=is_training)
-        x = tf.concat([x, y], axis=-1)
+        x = tf.concat(3, [x, y])
     x = shared_trunk_resnet(x, reuse=reuse, dropout=dropout, add_background=add_background)
     mask = seg_head(x, reuse=reuse, dropout=dropout)
     score = score_head(x, reuse=reuse, dropout=dropout)

@@ -25,9 +25,9 @@ def new_var(name, shape, initializer):
 
 #resnet-18
 def get_lr(timestep):
-    if timestep <= 7500:
+    if timestep <= 30000:
         return 1e-3
-    elif timestep <= 15000:
+    elif timestep <= 60000:
         return 5e-4
     else:
         return 1e-4
@@ -38,14 +38,14 @@ def main():
 
     parser.add_argument('--train_set_path', type=str, default='/media/icm_data/poke_nlc_training_new')
     parser.add_argument('--val_set_path', type=str, default='/media/icm_data/poke_nlc_val_new')
-    parser.add_argument('--tfmodel_path', type=str, default='/media/4tb/dian/models')
-    parser.add_argument('--tfboard_path', type=str, default='/media/4tb/dian/boards')
+    parser.add_argument('--tfmodel_path', type=str, default='/media/4tb/dian/window_seg/models')
+    parser.add_argument('--tfboard_path', type=str, default='/media/4tb/dian/window_seg/boards')
 
     parser.add_argument('--log_freq', type=int, default=50)
     parser.add_argument('--save_freq', type=int, default=1000)
     parser.add_argument('--gpu_ratio', type=float, default=0.99)
 
-    parser.add_argument('--mask_ratio', type=float, default=16.0)
+    parser.add_argument('--mask_ratio', type=float, default=24.0)
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--pos_max', type=int, default=24)
     parser.add_argument('--neg_min', type=int, default=46)
