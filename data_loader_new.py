@@ -47,5 +47,4 @@ def pos_score_sampling_poking(filename_queue, output_shape):
 
     scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
     scale = scale * (inpSize / maxDim)
-    side = input
-
+    side = 
