@@ -16,8 +16,8 @@ from models import build_resnet50_network, build_resnet18_network
 from data_loader import inputs_poking
 slim = tf.contrib.slim
 
-def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay):
-    return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f' % (prefix, trunk, ratio, pos_max, neg_min, decay)
+def gen_name(prefix, ratio, pos_max, neg_min, trunk, background, decay):
+    return '%s_%s_lambda_%.2f_a_%d_b_%d_background_%s_decay_%.5f' % (prefix, trunk, ratio, pos_max, neg_min, background, decay)
 
 def new_var(name, shape, initializer):
     return tf.get_variable(name, shape=shape, initializer=initializer)
@@ -154,7 +154,7 @@ def main():
     # if args.trunk == 'resnet50' or args.trunk == 'resnet18':
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
 
-    model_name = gen_name('pretrain_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.weight_decay)
+    model_name = gen_name('pretrain_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.background, args.weight_decay)
 
     summary_writer = tf.summary.FileWriter(args.tfboard_path +'/'+model_name, graph=tf.get_default_graph())
     model_saver = tf.train.Saver()
