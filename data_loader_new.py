@@ -4,6 +4,7 @@ import numpy as np
 
 scales = tf.convert_to_tensor([2**(-1), 2**(-0.75), 2**(-0.5), 2**0.5, 2**(0.75), 2])
 
+axisRatio = 1.75
 inpSize = 192
 maskSize = 112
 
@@ -38,7 +39,7 @@ def read_decode_positive_example_poking(filename_queue, shift=24):
           })
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
     center_max_axis = tf.reshape(center_max_axis, [3])
-    maxDim = center_max_axis[2]/1.75
+    maxDim = center_max_axis[2]/data
 
     data = tf.cast(features['data'], tf.float32)
     data = tf.reshape(data, [240,240,4])
@@ -74,7 +75,7 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min=46, neg_sh
           })
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
     center_max_axis = tf.reshape(center_max_axis, [3])
-    maxDim = center_max_axis[2]/1.75
+    maxDim = center_max_axis[2]/axisRatio
 
     data = tf.cast(features['data'], tf.float32)
     data = tf.reshape(data, [240,240,4])
@@ -90,13 +91,13 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min=46, neg_sh
     scale1 = scale1
     scale2 = scales[random_index]
 
-    coin_flip = tf.random_uniform([1], minval=0, maxval=1, dtype=tf.int32)[0]
+    coin_flip = tf.random_uniform([1], minval=0, maxval=1, dtype=tf.float32)[0]
     
-    scale = tf.where(coin_flip < 1, x = scale1, y = scale2)
+    scale = tf.where(coin_flip < 0.5, x = scale1, y = scale2)
     scale = scale * maxDim * 224.0/(160.0*128.0)
     side = scale * inpSize
 
-    shift_min = tf.where(coin_flip < 1, x = neg_shift_min, y = 0)
+    shift_min = tf.where(coin_flip < 0.5, x = neg_shift_min, y = 0)
     shift_max = neg_shift_max
 
     xc = center_max_axis[0] + pad_size
