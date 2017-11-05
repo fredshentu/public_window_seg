@@ -181,6 +181,7 @@ def read_decode_negative_sawyer_data(filename_queue,\
                                                             tf.cast(side, tf.int32) , tf.cast(side, tf.int32))
     img = tf.image.random_flip_up_down(img)
     img = tf.image.random_flip_left_right(img)
+    img = tf.image.resize_images(img, [inpSize, inpSize])
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
         background = tf.reshape(background, [160,160,3])
@@ -211,7 +212,7 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
     mask = tf.cast(mask, tf.float32)
     mask = tf.reshape(mask, [448,448,1])
     
-    img_mask = tf.concat(2,[img, mask])
+    img_mask = tf.concat([img, mask],2)
     img_mask = tf.pad(img_mask, [[padSize,padSize],[padSize,padSize],[0,0]])
     
     scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
@@ -224,7 +225,7 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
     side = inpSize * scale
     
     
-    image, mask = crop_data(xc, yc, side, sawyer_data = True)
+    img, mask = crop_data(img_mask, xc, yc, side, sawyer_data = True)
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
         background = tf.reshape(background, [160,160,3])
@@ -233,7 +234,7 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
         background = tf.image.resize_images(background, [bgSize, bgSize])
         return img, mask, 0, background
     else:
-        return img, mask, 0, -1.0
+        return img, mask, 1, -1.0
 
 def read_decode_negative_from_positive_sawyer_data(filename_queue, \
                             neg_shift_min, neg_shift_max, addBg):
@@ -255,7 +256,7 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, \
     mask = tf.cast(mask, tf.float32)
     mask = tf.reshape(mask, [448,448,1])
     
-    img_mask = tf.concat(2,[img, mask])
+    img_mask = tf.concat([img, mask], 2)
     img_mask = tf.pad(img_mask, [[padSize,padSize],[padSize,padSize],[0,0]])
     
     scale1 = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
@@ -282,7 +283,7 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, \
     yc += tf.cast(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]*2-1, tf.float32) * \
                 tf.random_uniform([1], minval=shift_min, maxval=shift_max, \
                 dtype=tf.float32)[0] * scale
-    image, mask = crop_data(img_mask, xc, yx, side)
+    img, mask = crop_data(img_mask, xc, yc, side)
     
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
@@ -299,9 +300,9 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True
     assert (mode in set(["positive", "negative", "negative_from_positive"]))
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
-                filenames, num_epochs=Noneepochs,Noneffle=True)
+                filenames, num_epochs=None,shuffle=True)
         if mode == "positive":
-            image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max)
+            image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max, addBg)
         
         elif mode == "negative":
             image, mask, score, background = read_decode_negative_sawyer_data(filename_queue,addBg)
@@ -321,6 +322,6 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True
                                 num_threads = num_thread,\
                                 capacity = queue_capacity, enqueue_many =False)
     
-        if model in set(["negative", "negative_from_positive"]):
-            mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]))
+        if mode in set(["negative", "negative_from_positive"]):
+            mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype = tf.int32)
         return image, mask, score, background
