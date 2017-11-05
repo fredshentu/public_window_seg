@@ -50,10 +50,8 @@ def read_decode_positive_example_poking(filename_queue, shift=24):
     scale = scale * maxDim * 224.0/(160.0*128.0)
     side = scale * inpSize
 
-    xc = center_max_axis[0] * scale + 200
-    yc = center_max_axis[1] * scale + 200
-
-    # import pdb; pdb.set_trace()
+    xc = center_max_axis[0] + 200
+    yc = center_max_axis[1] + 200
 
     xc += tf.cast(tf.random_uniform([1], minval=-shift, maxval=shift, dtype=tf.int32)[0], tf.float32) * scale
     yc += tf.cast(tf.random_uniform([1], minval=-shift, maxval=shift, dtype=tf.int32)[0], tf.float32) * scale
@@ -96,17 +94,17 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min=46, neg_sh
     
     scale = tf.where(coin_flip < 1, x = scale1, y = scale2)
     scale = scale * maxDim * 224.0/(160.0*128.0)
+    side = scale * inpSize
 
     shift_min = tf.where(coin_flip < 1, x = neg_shift_min, y = 0)
     shift_max = neg_shift_max
 
-    xc = center_max_axis[0] * scale + pad_size
-    yc = center_max_axis[1] * scale + pad_size
+    xc = center_max_axis[0] + pad_size
+    yc = center_max_axis[1] + pad_size
 
     xc += tf.cast(tf.random_uniform([1], minval=0, maxval=1, dtype=tf.int32)[0]*2-1, tf.float32) * tf.cast(tf.random_uniform([1], minval=shift_min, maxval=shift_max, dtype=tf.int32)[0], tf.float32) * scale
     yc += tf.cast(tf.random_uniform([1], minval=0, maxval=1, dtype=tf.int32)[0]*2-1, tf.float32) * tf.cast(tf.random_uniform([1], minval=shift_min, maxval=shift_max, dtype=tf.int32)[0], tf.float32) * scale
 
-    side = scale * inpSize
     image, mask = crop_data(data, xc, yc, side)
 
     return image, mask, 0, background
