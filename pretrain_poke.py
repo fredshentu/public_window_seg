@@ -66,10 +66,10 @@ def main():
     train_neg_img, train_neg_mask, train_neg_score, train_neg_background = inputs_poking(train_set_names,\
                                         args.pos_max, args.neg_min, positive=False, with_background=args.add_background)
     
-    train_segment_img   = tf.concat(0, [train_pos_segment_img,  train_neg_img])
-    train_segment_mask  = tf.concat(0, [train_pos_segment_mask, train_neg_mask])
-    train_scoring_img   = tf.concat(0, [train_pos_scoring_img, train_neg_img])
-    train_scoring_score = tf.concat(0, [train_pos_scoring_score, train_neg_score])
+    train_segment_img   = tf.concat([train_pos_segment_img,  train_neg_img], axis=0)
+    train_segment_mask  = tf.concat([train_pos_segment_mask, train_neg_mask], axis=0)
+    train_scoring_img   = tf.concat([train_pos_scoring_img, train_neg_img], axis=0)
+    train_scoring_score = tf.concat([train_pos_scoring_score, train_neg_score], axis=0)
 
     val_pos_segment_img, val_pos_segment_mask, val_pos_segment_score, val_pos_segment_background = inputs_poking(val_set_names,\
                                         args.pos_max, args.neg_min, positive=True, with_background=args.add_background)
@@ -78,17 +78,17 @@ def main():
     val_neg_img, val_neg_mask, val_neg_score, val_neg_background = inputs_poking(val_set_names,\
                                         args.pos_max, args.neg_min, positive=False, with_background=args.add_background)
     
-    val_segment_img   = tf.concat(0, [val_pos_segment_img,  val_neg_img])
-    val_segment_mask  = tf.concat(0, [val_pos_segment_mask, val_neg_mask])
-    val_scoring_img   = tf.concat(0, [val_pos_scoring_img, val_neg_img])
-    val_scoring_score = tf.concat(0, [val_pos_scoring_score, val_neg_score])
+    val_segment_img   = tf.concat([val_pos_segment_img,  val_neg_img], axis=0)
+    val_segment_mask  = tf.concat([val_pos_segment_mask, val_neg_mask], axis=0)
+    val_scoring_img   = tf.concat([val_pos_scoring_img, val_neg_img], axis=0)
+    val_scoring_score = tf.concat([val_pos_scoring_score, val_neg_score], axis=0)
 
 
     if args.add_background:
-        train_segment_background = tf.concat(0, [train_pos_segment_background, train_neg_background])
-        train_scoring_background = tf.concat(0, [train_pos_scoring_background, train_neg_background])
-        val_segment_background = tf.concat(0, [val_pos_segment_background, val_neg_background])
-        val_scoring_background = tf.concat(0, [val_pos_scoring_background, val_neg_background])
+        train_segment_background = tf.concat([train_pos_segment_background, train_neg_background], axis=0)
+        train_scoring_background = tf.concat([train_pos_scoring_background, train_neg_background], axis=0)
+        val_segment_background = tf.concat([val_pos_segment_background, val_neg_background], axis=0)
+        val_scoring_background = tf.concat([val_pos_scoring_background, val_neg_background], axis=0)
     else:
         train_segment_background = None
         train_scoring_background = None
@@ -122,15 +122,15 @@ def main():
 
     tmp_vars = set(tf.all_variables()) # Trunk variables
 
-    train_mask_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(train_pred_mask, train_segment_mask)
-    train_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(train_pred_score, train_scoring_score)
+    train_mask_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=train_pred_mask, labels=train_segment_mask)
+    train_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=train_pred_score, labels=train_scoring_score)
     decay_loss = tf.reduce_mean(tf.pack([tf.nn.l2_loss(i) for i in tf.all_variables() if 'weights' in i.name]))
     train_mask_loss = tf.reduce_mean(train_mask_loss)
     train_label_loss = tf.reduce_mean(train_label_loss)
 
 
-    val_mask_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(val_pred_mask, val_segment_mask)
-    val_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(val_pred_score, val_scoring_score)
+    val_mask_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=val_pred_mask, labels=val_segment_mask)
+    val_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=val_pred_score, labels=val_scoring_score)
     val_mask_loss = tf.reduce_mean(val_mask_loss)
     val_label_loss = tf.reduce_mean(val_label_loss)
 

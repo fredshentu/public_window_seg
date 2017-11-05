@@ -39,7 +39,7 @@ def read_decode_positive_example_poking(filename_queue, shift=24, pad_size=100, 
           })
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
     center_max_axis = tf.reshape(center_max_axis, [3])
-    maxDim = center_max_axis[2]/data
+    maxDim = center_max_axis[2]/axisRatio
 
     data = tf.cast(features['data'], tf.float32)
     data = tf.reshape(data, [240,240,4])
@@ -118,16 +118,18 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min=46, neg_sh
         return image, mask, 0, 0
 
 
-def inputs_poking(filenames, pos_max=24, neg_min=46, neg_max=64, batch_size=16, positive=True, viz=False):
+def inputs_poking(filenames, pos_max=24, neg_min=46, neg_max=64, batch_size=16, positive=True, viz=False, with_background=False):
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(filenames, num_epochs=None)
         if positive:
             image, mask, score, background = read_decode_positive_example_poking(filename_queue, \
-                                            shift=pos_max)
+                                            shift=pos_max, \
+                                            with_background=with_background)
         
         else:
             image, mask, score, background = read_decode_negative_example_poking(filename_queue, \
                                             neg_shift_min=neg_min, \
+                                            with_background=with_background,\
                                             neg_shift_max=neg_max)
 
         num_thread = 1 if viz else 4
