@@ -124,7 +124,7 @@ def main():
 
     train_mask_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=train_pred_mask, labels=train_segment_mask)
     train_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=train_pred_score, labels=train_scoring_score)
-    decay_loss = tf.reduce_mean(tf.pack([tf.nn.l2_loss(i) for i in tf.all_variables() if 'weights' in i.name]))
+    decay_loss = tf.reduce_mean(tf.stack([tf.nn.l2_loss(i) for i in tf.all_variables() if 'weights' in i.name]))
     train_mask_loss = tf.reduce_mean(train_mask_loss)
     train_label_loss = tf.reduce_mean(train_label_loss)
 

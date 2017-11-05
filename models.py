@@ -60,8 +60,6 @@ def resnet_18_network(img_ph, background=None, is_training=False, reuse=False, s
 def shared_trunk_resnet(x, reuse=False, dropout=1.0, add_background=False):
     with tf.variable_scope('shared_trunk', reuse=reuse):
         # First crop
-        x = tf.image.crop_to_bounding_box(x, 1,1,10,10)
-
         if add_background:
             conv1w = new_var('conv1_weights', [1,1,2048,128])
         else:
@@ -139,8 +137,7 @@ def rebuild_network(img_ph, model_path, model_type, debug = False):
     elif model_type == 'resnet50':
         feature_net = resnet_50_network
     elif model_type == 'VGG':
-        print("VGG has been purged")
-        raise NotImplemetedError
+        raise NotImplemetedError("VGG has been purged")
     #build feature network, no change needed
     feature_net_out = feature_net(img_ph, is_training = False)
     
@@ -173,7 +170,7 @@ def rebuild_network(img_ph, model_path, model_type, debug = False):
             data_in = normalized_image
         else:
             data_in = [normalized_image]
-        return sess.run([msk, score], feed_dict = {img_ph:data_in})
+        return sess.run([msk, score], feed_dict = { img_ph:data_in })
     return model_out, sess
     
 def rebuild_original_network(img_ph, model_path, model_type, debug = False):
@@ -185,8 +182,7 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False):
     elif model_type == 'resnet50':
         net = build_resnet50_network
     elif model_type == 'VGG':
-        print("VGG has been purged")
-        raise NotImplemetedError
+        raise NotImplemetedError("VGG has been purged")
     #build feature network, no change needed
     seg_out, score_out = net(img_ph, sess = sess, is_training = False)
     model_saver = tf.train.Saver()
@@ -199,7 +195,7 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False):
     def model_out(image, batch = False):
         normalized_image = image/255.0 - 0.5
         if debug:
-            return sess.run([seg_out, score_out, conv_out,feature_net_out], feed_dict = {img_ph:[normalized_image]})
+            return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image]})
         if batch:
             data_in = normalized_image
         else:
@@ -209,6 +205,7 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False):
 
 def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
     x = resnet_50_network(img_ph, reuse=reuse, is_training=is_training)
+    x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
     if add_background:
         y = resnet_50_network(background, reuse=True, is_training=is_training)
         x = tf.concat([x, y], 3)
@@ -225,6 +222,7 @@ def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_t
 
 def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
     x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
+    x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
     if add_background:
         y = resnet_18_network(background, reuse=True, is_training=is_training)
         x = tf.concat([x, y], 3)
