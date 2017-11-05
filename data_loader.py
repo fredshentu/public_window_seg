@@ -9,8 +9,12 @@ maskSize = 112
 padSize = 500
 bgSize = 160
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
+>>>>>>> fred
+=======
+
 >>>>>>> fred
 #input number all float32
 def crop_data(data, xc, yc, side, sawyer_data = False):
@@ -44,9 +48,13 @@ def read_decode_positive_example_poking(filename_queue, pos_shift, addBg):
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
     center_max_axis = tf.reshape(center_max_axis, [3])
 <<<<<<< HEAD
+<<<<<<< HEAD
     maxDim = tf.clip_by_value(center_max_axis[2]/randNumberPokingdata, 0.0, 60.0)
 =======
     maxDim = center_max_axis[2]/randNumberPokingdata
+>>>>>>> fred
+=======
+    maxDim = tf.clip_by_value(center_max_axis[2]/randNumberPokingdata, 0.0, 60.0)
 >>>>>>> fred
 
     data = tf.cast(features['data'], tf.float32)
@@ -101,9 +109,13 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min, neg_shift
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
     center_max_axis = tf.reshape(center_max_axis, [3])
 <<<<<<< HEAD
+<<<<<<< HEAD
     maxDim = tf.clip_by_value(center_max_axis[2]/randNumberPokingdata, 0.0, 60.0)
 =======
     maxDim = center_max_axis[2]/randNumberPokingdata
+>>>>>>> fred
+=======
+    maxDim = tf.clip_by_value(center_max_axis[2]/randNumberPokingdata, 0.0, 60.0)
 >>>>>>> fred
 
     data = tf.cast(features['data'], tf.float32)
@@ -157,6 +169,7 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min, neg_shift
     yc = center_max_axis[1] + padSize
     
     #random from -1, 1 decide the jettering direction
+    # import pdb; pdb.set_trace()
     xc += tf.cast(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]*2-1, tf.float32) * \
                 tf.random_uniform([1], minval=shift_min, maxval=shift_max, \
                 dtype=tf.float32)[0] * scale
@@ -167,9 +180,9 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min, neg_shift
     image, mask = crop_data(data, xc, yc, side)
     if addBg:
         background = tf.image.resize_images(background, [bgSize, bgSize])
-        return image, -1.0, 0, background
+        return image, -1, 0, background
     else:
-        return image, -1.0, 0, -1.0
+        return image, -1, 0, -1.0
 
 >>>>>>> fred
 def inputs_poking(filenames,
@@ -203,9 +216,13 @@ def inputs_poking(filenames,
         
         if not positive: #mask dequeued is [-1.0, -1.0, -1.0....]
 <<<<<<< HEAD
+<<<<<<< HEAD
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype=tf.int32)
 =======
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]))
+>>>>>>> fred
+=======
+            mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype=tf.int32)
 >>>>>>> fred
         
         #if not addBg, background = [-1.0, -1.0, -1.0 ......]
@@ -239,8 +256,11 @@ def read_decode_negative_sawyer_data(filename_queue,\
     img = tf.image.random_flip_up_down(img)
     img = tf.image.random_flip_left_right(img)
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     img = tf.image.resize_images(img, [inpSize, inpSize])
+>>>>>>> fred
+=======
 >>>>>>> fred
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
@@ -273,9 +293,13 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
     mask = tf.reshape(mask, [448,448,1])
     
 <<<<<<< HEAD
+<<<<<<< HEAD
     img_mask = tf.concat([img, mask], 2)
 =======
     img_mask = tf.concat([img, mask],2)
+>>>>>>> fred
+=======
+    img_mask = tf.concat([img, mask], 2)
 >>>>>>> fred
     img_mask = tf.pad(img_mask, [[padSize,padSize],[padSize,padSize],[0,0]])
     
@@ -290,9 +314,13 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
     
     
 <<<<<<< HEAD
+<<<<<<< HEAD
     image, mask = crop_data(xc, yc, side, sawyer_data = True)
 =======
     img, mask = crop_data(img_mask, xc, yc, side, sawyer_data = True)
+>>>>>>> fred
+=======
+    image, mask = crop_data(xc, yc, side, sawyer_data = True)
 >>>>>>> fred
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
@@ -303,9 +331,13 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
         return img, mask, 0, background
     else:
 <<<<<<< HEAD
+<<<<<<< HEAD
         return img, mask, 0, -1.0
 =======
         return img, mask, 1, -1.0
+>>>>>>> fred
+=======
+        return img, mask, 0, -1.0
 >>>>>>> fred
 
 def read_decode_negative_from_positive_sawyer_data(filename_queue, \
@@ -383,7 +415,7 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, \
     yc += tf.cast(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]*2-1, tf.float32) * \
                 tf.random_uniform([1], minval=shift_min, maxval=shift_max, \
                 dtype=tf.float32)[0] * scale
-    img, mask = crop_data(img_mask, xc, yc, side)
+    image, mask = crop_data(img_mask, xc, yx, side)
     
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
@@ -402,6 +434,7 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
 <<<<<<< HEAD
+<<<<<<< HEAD
                 filenames, num_epochs=Noneepochs,Noneffle=True)
         if mode == "positive":
             image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max)
@@ -409,6 +442,11 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True
                 filenames, num_epochs=None,shuffle=True)
         if mode == "positive":
             image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max, addBg)
+>>>>>>> fred
+=======
+                filenames, num_epochs=Noneepochs,Noneffle=True)
+        if mode == "positive":
+            image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max)
 >>>>>>> fred
         
         elif mode == "negative":
@@ -430,6 +468,7 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True
                                 capacity = queue_capacity, enqueue_many =False)
     
 <<<<<<< HEAD
+<<<<<<< HEAD
         if model in set(["negative", "negative_from_positive"]):
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]))
     
@@ -438,4 +477,10 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True
         if mode in set(["negative", "negative_from_positive"]):
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype = tf.int32)
         return image, mask, score, background
+>>>>>>> fred
+=======
+        if model in set(["negative", "negative_from_positive"]):
+            mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]))
+    
+    return image, mask, score, background
 >>>>>>> fred
