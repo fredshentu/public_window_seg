@@ -47,8 +47,8 @@ def main():
 
     parser.add_argument('--mask_ratio', type=float, default=24.0)
     parser.add_argument('--weight_decay', type=float, default=5e-4)
-    parser.add_argument('--pos_max', type=int, default=24)
-    parser.add_argument('--neg_min', type=int, default=46)
+    parser.add_argument('--pos_max', type=float, default=24)
+    parser.add_argument('--neg_min', type=float, default=46)
     parser.add_argument('--initlr', type=float, default=1e-3)
     parser.add_argument('--num_itr', type=int, default=100000)
     parser.add_argument('--trunk', type=str, choices=['resnet50', 'resnet18', 'vgg'])
@@ -60,34 +60,38 @@ def main():
     val_set_names = list([args.val_set_path + '/' + l for l in os.listdir(args.val_set_path)])
     
     train_pos_segment_img, train_pos_segment_mask, train_pos_segment_score, train_pos_segment_background = inputs_poking(train_set_names,\
-                                        args.pos_max, args.neg_min, positive=True, with_background=args.add_background)
+                                        pos_max=args.pos_max, neg_min=args.neg_min, positive=True, addBg=args.add_background, batch_size=32)
+
     train_pos_scoring_img, train_pos_scoring_mask, train_pos_scoring_score, train_pos_scoring_background = inputs_poking(train_set_names, \
-                                        1, args.neg_min, positive=True, with_background=args.add_background)
+                                        pos_max=0.1, neg_min=args.neg_min, positive=True, addBg=args.add_background, batch_size=16)
+
     train_neg_img, train_neg_mask, train_neg_score, train_neg_background = inputs_poking(train_set_names,\
-                                        args.pos_max, args.neg_min, positive=False, with_background=args.add_background)
+                                        pos_max=args.pos_max, neg_min=args.neg_min, positive=False, addBg=args.add_background, batch_size=16)
     
-    train_segment_img   = tf.concat([train_pos_segment_img,  train_neg_img], axis=0)
-    train_segment_mask  = tf.concat([train_pos_segment_mask, train_neg_mask], axis=0)
+    train_segment_img   = train_pos_segment_img
+    train_segment_mask  = train_pos_segment_mask
     train_scoring_img   = tf.concat([train_pos_scoring_img, train_neg_img], axis=0)
     train_scoring_score = tf.concat([train_pos_scoring_score, train_neg_score], axis=0)
 
     val_pos_segment_img, val_pos_segment_mask, val_pos_segment_score, val_pos_segment_background = inputs_poking(val_set_names,\
-                                        args.pos_max, args.neg_min, positive=True, with_background=args.add_background)
+                                        pos_max=args.pos_max, neg_min=args.neg_min, positive=True, addBg=args.add_background, batch_size=32)
+
     val_pos_scoring_img, val_pos_scoring_mask, val_pos_scoring_score, val_pos_scoring_background = inputs_poking(val_set_names, \
-                                        1, args.neg_min, positive=True, with_background=args.add_background)
-    val_neg_img, val_neg_mask, val_neg_score, val_neg_background = inputs_poking(val_set_names,\
-                                        args.pos_max, args.neg_min, positive=False, with_background=args.add_background)
+                                        pos_max=1, neg_min=args.neg_min, positive=True, addBg=args.add_background, batch_size=16)
+
+    val_neg_img, val_neg_mask, val_neg_score, val_neg_background =                                 inputs_poking(val_set_names,\
+                                        pos_max=args.pos_max, neg_min=args.neg_min, positive=False, addBg=args.add_background, batch_size=16)
     
-    val_segment_img   = tf.concat([val_pos_segment_img,  val_neg_img], axis=0)
-    val_segment_mask  = tf.concat([val_pos_segment_mask, val_neg_mask], axis=0)
+    val_segment_img   = train_pos_segment_img
+    val_segment_mask  = val_pos_segment_mask
     val_scoring_img   = tf.concat([val_pos_scoring_img, val_neg_img], axis=0)
     val_scoring_score = tf.concat([val_pos_scoring_score, val_neg_score], axis=0)
 
 
     if args.add_background:
-        train_segment_background = tf.concat([train_pos_segment_background, train_neg_background], axis=0)
+        train_segment_background = train_pos_segment_background
         train_scoring_background = tf.concat([train_pos_scoring_background, train_neg_background], axis=0)
-        val_segment_background = tf.concat([val_pos_segment_background, val_neg_background], axis=0)
+        val_segment_background = val_pos_segment_background
         val_scoring_background = tf.concat([val_pos_scoring_background, val_neg_background], axis=0)
     else:
         train_segment_background = None
@@ -136,8 +140,8 @@ def main():
 
     mask_optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
     score_optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
-    train_mask_opt = slim.learning.create_train_op(train_mask_loss*args.mask_ratio + args.weight_decay * decay_loss, optimizer, clip_gradient_norm=40.0)
-    train_score_opt = slim.learning.create_train_op(train_label_loss + args.weight_decay * decay_loss, optimizer, clip_gradient_norm=40.0)
+    train_mask_opt = slim.learning.create_train_op(train_mask_loss*args.mask_ratio + args.weight_decay * decay_loss, mask_optimizer, clip_gradient_norm=40.0)
+    train_score_opt = slim.learning.create_train_op(train_label_loss + args.weight_decay * decay_loss, score_optimizer, clip_gradient_norm=40.0)
 
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
 
@@ -152,27 +156,25 @@ def main():
     loss_summ = []
     loss_summ.append(tf.summary.scalar('train/mask_loss', train_mask_loss))
     loss_summ.append(tf.summary.scalar('train/label_loss', train_label_loss))
-    loss_summ.append(tf.summary.scalar('train/weight_decay_loss', train_decay_loss))
-    loss_summ.append(tf.summary.scalar('train/total_loss', train_total_loss))
+    loss_summ.append(tf.summary.scalar('decay_loss', decay_loss))
     loss_summ.append(tf.summary.scalar('val/mask_loss', val_mask_loss))
     loss_summ.append(tf.summary.scalar('val/label_loss', val_label_loss))
-    loss_summ.append(tf.summary.scalar('val/total_loss', val_total_loss))
 
     img_summ = []
-    val_pos_img_r, val_pos_img_g, val_pos_img_b = tf.unstack(tf.image.resize_images((val_pos_img+0.5)*255.0, [112, 112]), axis=-1)
+    val_pos_img_r, val_pos_img_g, val_pos_img_b = tf.unstack(tf.image.resize_images((val_pos_segment_img+0.5)*255.0, [112, 112]), axis=-1)
     # import pdb; pdb.set_trace()
-    val_pos_img_viz_r = tf.cast(val_pos_mask, tf.float32) * val_pos_img_r
+    val_pos_img_viz_r = 127 + tf.cast(val_pos_segment_mask, tf.float32) * val_pos_img_r / 2
     val_pos_img_viz = tf.stack([val_pos_img_viz_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
     # import pdb; pdb.set_trace()
-    val_pos_img_pred_r = tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0)[:16], axis=0), dim=-1),axis=-1)[1] * val_pos_img_r
+    val_pos_img_pred_r = 127 + tf.unstack(tf.nn.softmax(tf.stack(tf.unstack(val_pred_mask, axis=0), axis=0), dim=-1),axis=-1)[1] * val_pos_img_r / 2
     val_pos_img_pred_viz = tf.stack([val_pos_img_pred_r, val_pos_img_g, val_pos_img_b], axis=-1)
 
 
 
-    img_summ.append(tf.image_summary('val_pos_img', val_pos_img_viz, max_images=10))
-    img_summ.append(tf.image_summary('val_pos_img_pred', val_pos_img_pred_viz, max_images=10))
-    img_summ.append(tf.image_summary('val_neg_img', val_neg_img, max_images=10))
+    img_summ.append(tf.summary.image('val_pos_img', val_pos_img_viz, max_outputs=10))
+    img_summ.append(tf.summary.image('val_pos_img_pred', val_pos_img_pred_viz, max_outputs=10))
+    img_summ.append(tf.summary.image('val_neg_img', val_neg_img, max_outputs=10))
 
     loss_summ_op = tf.summary.merge(loss_summ + img_summ)
     # sess.run(tf.initialize_all_variables())
