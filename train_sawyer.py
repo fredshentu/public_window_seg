@@ -118,6 +118,11 @@ def main():
     val_img = tf.concat(0, [val_pos_img, val_neg_img])
     val_mask = tf.concat(0, [val_pos_mask, val_neg_mask])
     val_score = tf.concat(0, [val_pos_score, val_neg_score])
+    val_background = tf.concat(0, [
+        val_pos_background,
+        val_neg_background,
+    ])
+
     learning_rate = tf.placeholder(tf.float32, [])
     # Build network
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu_ratio)
