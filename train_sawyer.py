@@ -72,7 +72,7 @@ def main():
     
     train_pos_segment_img_sawyer, train_pos_segment_masks_sawyer, train_pos_segment_score_sawyer, train_pos_segment_background_sawyer = \
                                     inputs_sawyer_data(train_set_new_pos_names, "positive", args.pos_max, \
-                                                                    args.neg_min, batch_size = 12)
+                                                                    args.neg_min, batch_size = 24)
     train_pos_scoring_img_sawyer, train_pos_scoring_masks_sawyer, train_pos_scoring_score_sawyer, train_pos_scoring_background_sawyer = \
                                     inputs_sawyer_data(train_set_new_pos_names, "positive", 0.1, \
                                                                     args.neg_min, batch_size = 12)
