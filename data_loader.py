@@ -2,182 +2,163 @@ import tensorflow as tf
 import numpy as np
 
 
-scales = tf.convert_to_tensor([2**(-0.25),1.0, 2**(0.25), 2**(0.5), 2**0.75, 2**(-0.5), 2**(-0.75), \
-                                            2**(-1.0),2**(1.0)])
-
-def crop_random_jettering(image_tensor, middle_offset_heigh, middle_offset_width,\
-                jettering_min, jettering_max, crop_size):
-    jettering_min = tf.cast(jettering_min, tf.int32)
-    jettering_max = tf.cast(jettering_max, tf.int32)
-    elems = tf.cast(tf.convert_to_tensor([1, -1]), tf.int32)
-    samples = tf.multinomial(tf.log([[10.,10.]]), 2) # note log-prob
-    
-    offset_width = middle_offset_width + \
-                        elems[tf.cast(samples[0][0], tf.int32)]*tf.random_uniform(
-                                                                        [1],
-                                                                        minval=jettering_min,
-                                                                        maxval=jettering_max,
-                                                                        dtype=tf.int32)[0]
-    offset_height = middle_offset_heigh + \
-                        elems[tf.cast(samples[0][1], tf.int32)]*tf.random_uniform(
-                                                                        [1],
-                                                                        minval=jettering_min,
-                                                                        maxval=jettering_max,
-                                                                        dtype=tf.int32)[0]
-    data = tf.image.crop_to_bounding_box(image_tensor, offset_height, offset_width,\
-                                                       crop_size , crop_size)
+scales = tf.convert_to_tensor([2**(-1), 2**(-0.75), 2**(-0.5), 2**0.5, 2**(0.75), 2])
+randNumberPokingdata = 1.75
+inpSize = 192
+maskSize = 112
+padSize = 500
+bgSize = 160
+#input number all float32
+def crop_data(data, xc, yc, side, sawyer_data = False):
+    data = tf.image.crop_to_bounding_box(data, tf.cast(yc-side/2.0, tf.int32), tf.cast(xc-side/2.0, tf.int32), \
+                                                            tf.cast(side, tf.int32) , tf.cast(side, tf.int32))
     data = tf.image.random_flip_up_down(data)
     data = tf.image.random_flip_left_right(data)
     image = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
     mask = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [3]), [1,2,0])
+
+    image = tf.image.resize_images(image, [inpSize, inpSize])
+
+    # import pdb; pdb.set_trace()
+    mask = tf.image.resize_images(mask, [maskSize, maskSize])
+    if not sawyer_data:
+        mask = (mask + 1) / 2
+    mask = tf.cast(tf.transpose(mask, [2,0,1])[0], tf.int32) #msk rank2
+
     return image, mask
 
-def read_decode_positive_example(filename_queue, obs_shape, jetter_length):
+def read_decode_positive_example_poking(filename_queue, pos_shift, addBg):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
           serialized_example,
           # Defaults are not specified since both keys are required.
           features={
-                  'data': tf.FixedLenFeature([np.prod(obs_shape)], tf.float32),
+                  'data': tf.FixedLenFeature([np.prod([240,240,4])], tf.float32),
                   'center_max_axis':tf.FixedLenFeature([3], tf.float32),
           })
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
     center_max_axis = tf.reshape(center_max_axis, [3])
+    maxDim = center_max_axis[2]/randNumberPokingdata
+
     data = tf.cast(features['data'], tf.float32)
-    data = tf.reshape(data, obs_shape)
-    background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
-    
-    center_x = center_max_axis[0]
-    center_y = center_max_axis[1]
-    long_axis = center_max_axis[2]
+    data = tf.reshape(data, [240,240,4])
+    background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0]) #240x240
+    data = tf.pad(data,[[padSize,padSize],[padSize,padSize],[0,0]])
     
     scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
-    scale = scale * (224.0/long_axis)
-    
-    center_x = center_max_axis[0] * scale + 200
-    center_y = center_max_axis[1] * scale + 200
-    int_final_size = tf.cast(240*scale, tf.int32)
-    data = tf.image.resize_images(data, (int_final_size, int_final_size))
-    
-    
-    
-    data = tf.pad(data, [[200,200],[200,200],[0,0]])
+    scale = scale * maxDim * 224.0/(160.0*128.0)
+    side = scale * inpSize
+
+    xc = center_max_axis[0] + padSize
+    yc = center_max_axis[1] + padSize
+
+    xc += tf.random_uniform([1], minval=-pos_shift, maxval=pos_shift, dtype=tf.float32)[0] * scale
+    yc += tf.random_uniform([1], minval=-pos_shift, maxval=pos_shift, dtype=tf.float32)[0] * scale
+
+    image, mask = crop_data(data, xc, yc, side)
+    if addBg:
+        background = tf.image.resize_images(background, [bgSize, bgSize])
+        return image, mask, 1, background
+    else:
+        return image, mask, 1, -1.0
 
 
+def read_decode_negative_example_poking(filename_queue, neg_shift_min, neg_shift_max, addBg):
 
-    middle_offset_heigh = tf.cast(center_y - 112, tf.int32)
-    middle_offset_width = tf.cast(center_x - 112, tf.int32)
-    
-    #224 crop size, jettering should be 22 instead of 16
-    jettering_min = jetter_length[0][0]
-    jettering_max = jetter_length[0][1]
-    image, mask = crop_random_jettering(data, middle_offset_heigh, middle_offset_width,\
-                            jettering_min, jettering_max, 224)
-    
-    return image, mask , 1, background
-
-
-def read_decode_negative_example(filename_queue, obs_shape,jetter_length):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
           serialized_example,
           # Defaults are not specified since both keys are required.
           features={
-                  'data': tf.FixedLenFeature([np.prod(obs_shape)], tf.float32),
+                  'data': tf.FixedLenFeature([np.prod([240,240,4])], tf.float32),
                   'center_max_axis':tf.FixedLenFeature([3], tf.float32),
           })
     center_max_axis = tf.cast(features['center_max_axis'], tf.float32)
     center_max_axis = tf.reshape(center_max_axis, [3])
+    maxDim = center_max_axis[2]/randNumberPokingdata
+
     data = tf.cast(features['data'], tf.float32)
-    data = tf.reshape(data, obs_shape)
+    data = tf.reshape(data, [240,240,4])
+
     background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
-    # background = tf.image.resize_images()
+    data = tf.pad(data,[[padSize,padSize],[padSize,padSize],[0,0]])
+    #if good range, using bad shift, if bad range, using arbitrary shift
+    random_index = tf.random_uniform([1], minval=0, maxval=6, dtype=tf.int32)[0]
+    
 
-    
-    center_x = center_max_axis[0] 
-    center_y = center_max_axis[1]
-    long_axis = center_max_axis[2]
-    #scaling to this data
-    random_index = tf.random_uniform(
-                            [1],
-                            minval=0,
-                            maxval=9,
-                            dtype=tf.int32)[0]
-    #if good range, using bad offset, if bad range, using arbitrary offset
-   
-    
-    
     scale1 = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
-    scale1 = scale1 * (224.0/long_axis)
-    #sometimes use large offset to learn about padding and arena
-    scale2 = scales[random_index] * (224.0/long_axis)
-    
-    scale = tf.where(random_index < 3, x = scale1, y = scale2)
-    
-    jetter_range_index = tf.where(random_index < 3, x = 1, y = 2)
-    jettering_min = jetter_length[jetter_range_index][0]
-    jettering_max = jetter_length[jetter_range_index][1]
-    
-    
-    
-    center_x = center_max_axis[0] * scale + 200
-    center_y = center_max_axis[1] * scale + 200
-    int_final_size = tf.cast(240*scale, tf.int32)
-    data = tf.image.resize_images(data, (int_final_size, int_final_size))
-    
-    data = tf.pad(data, [[200,200],[200,200],[0,0]])
+    scale1 = scale1
+    scale2 = scales[random_index]
 
-
-
-    middle_offset_heigh = tf.cast(center_y - 112, tf.int32)
-    middle_offset_width = tf.cast(center_x - 112, tf.int32)
+    coin_flip = tf.random_uniform([1], minval=0, maxval=1, dtype=tf.float32)[0]
     
+    scale = tf.where(coin_flip < 3/(3+6), x = scale1, y = scale2) # 1/3 probability of using correct scale
+    scale = scale * maxDim * 224.0/(160.0*128.0)
+    side = scale * inpSize
+
+    shift_min = tf.where(coin_flip < 3/(3+6), x = neg_shift_min, y = 0)
+    shift_max = neg_shift_max
+
+    xc = center_max_axis[0] + padSize
+    yc = center_max_axis[1] + padSize
     
-    image, mask = crop_random_jettering(data, middle_offset_heigh, middle_offset_width,\
-                            jettering_min, jettering_max, 224)
+    #random from -1, 1 decide the jettering direction
+    xc += tf.cast(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]*2-1, tf.float32) * \
+                tf.random_uniform([1], minval=shift_min, maxval=shift_max, \
+                dtype=tf.float32)[0] * scale
+    yc += tf.cast(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]*2-1, tf.float32) * \
+                tf.random_uniform([1], minval=shift_min, maxval=shift_max, \
+                dtype=tf.float32)[0] * scale
 
-    return image, mask, 0, background
+    image, mask = crop_data(data, xc, yc, side)
+    if addBg:
+        background = tf.image.resize_images(background, [bgSize, bgSize])
+        return image, -1.0, 0, background
+    else:
+        return image, -1.0, 0, -1.0
 
-def inputs_poking(filenames, pos_max, neg_min, obs_shape = [240,240,4], train=True, \
-
-                batch_size=16, num_epochs = None, positive = True, viz=False):
-    jetter_length = tf.convert_to_tensor([(0, pos_max), (neg_min, 90), (0, 90), (64, 90)])
+def inputs_poking(filenames,
+            pos_max=24, 
+            neg_min=50, 
+            neg_max=90, 
+            batch_size=16, 
+            positive=True, 
+            viz=False, 
+            addBg = False):
+    
     with tf.name_scope('input'):
-        filename_queue = tf.train.string_input_producer(
-                filenames, num_epochs=num_epochs, shuffle = True)
+        filename_queue = tf.train.string_input_producer(filenames, num_epochs=None)
         if positive:
-            image, mask, score, background = read_decode_positive_example(filename_queue, obs_shape, jetter_length)
+            image, mask, score, background = read_decode_positive_example_poking(filename_queue, \
+                                            pos_max, addBg)
         
         else:
-            image, mask, score, background = read_decode_negative_example(filename_queue, obs_shape, jetter_length)
-            
-            
-        if train:
-            num_thread = 12
-            queue_capacity = 100 if viz else 3000
-        else:
-            num_thread = 4
-            queue_capacity = 100 if viz else 3000
+            image, mask, score, background = read_decode_negative_example_poking(filename_queue, \
+                                            neg_min, neg_max, addBg)
 
-        image, mask, score, background = tf.train.shuffle_batch([image, mask, score, background], 
-                                min_after_dequeue=1000 , \
-                                batch_size = batch_size, \
-                                num_threads = num_thread,\
-                                capacity = queue_capacity, enqueue_many = False)
-        
-        image = tf.image.resize_images(image, [160,160])
-        
-        downsampled_mask = tf.image.resize_images(mask, [112,112])
-        downsampled_mask = (downsampled_mask + 1) / 2
-        downsampled_mask = tf.cast(tf.transpose(downsampled_mask, [3,0,1,2])[0], tf.int32)
-        background = tf.image.resize_images(background, [160, 160])
+        num_thread = 1 if viz else 4
+        queue_capacity = 300 if viz else 3000
 
-        return image, downsampled_mask, score, background
+        image, mask, score, background = tf.train.shuffle_batch([image, mask, score, background],
+                min_after_dequeue=10 if viz else 1000 , \
+                batch_size = batch_size, \
+                num_threads = num_thread,\
+                capacity = queue_capacity, enqueue_many =False,
+        )
         
+        if not positive: #mask dequeued is [-1.0, -1.0, -1.0....]
+            mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]))
         
-def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = [256,256]):
+        #if not addBg, background = [-1.0, -1.0, -1.0 ......]
+        return image, mask, score, background
+
+
+
+#robot negative data sacling only.... no jettering needed
+def read_decode_negative_sawyer_data(filename_queue,\
+                                    addBg):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
@@ -191,38 +172,28 @@ def read_decode_negative_sawyer_data(filename_queue, jetter_length, obs_shape = 
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
-    img = tf.pad(img, [[200,200],[200,200],[0,0]])
-
-    background = tf.decode_raw(features['background'], tf.uint8)
-    background = tf.reshape(background, [160,160,3])
-    background = tf.cast(background, tf.float32)
-    background = (background/255.0) - 0.5
-
-    random_index = tf.random_uniform(
-                            [1],
-                            minval=0,
-                            maxval=8,
-                            dtype=tf.int32)[0]
-                            
-    crop_size = scales[random_index] * 112
-
-    middle_offset_heigh = 224 + 200 - tf.cast(crop_size, tf.int32)
-    middle_offset_width = 224 + 200 - tf.cast(crop_size, tf.int32)
+    img = tf.pad(img, [[padSize,padSize],[padSize,padSize],[0,0]])
     
-    
-    
-    int_crop_size = tf.cast(scales[random_index] * 224, tf.int32)
-    img = tf.image.crop_to_bounding_box(img, middle_offset_heigh, middle_offset_width,\
-                                                       int_crop_size , int_crop_size)
-
+    scale = tf.pow(2.0, tf.random_uniform([1], -1, 1))[0]
+    xc = yc = 224 + padSize
+    side = 224.0*scale #tf.float32, TODO: make data format compatable 
+    img = tf.image.crop_to_bounding_box(img, tf.cast(yc-side/2.0, tf.int32), tf.cast(xc-side/2.0, tf.int32), \
+                                                            tf.cast(side, tf.int32) , tf.cast(side, tf.int32))
     img = tf.image.random_flip_up_down(img)
     img = tf.image.random_flip_left_right(img)
-    img = tf.image.resize_images(img, [224,224])
-    
-    return img,tf.convert_to_tensor(np.zeros([224,224,1])), 0, background
-
-
-def read_decode_negative_from_positive_sawyer_data(filename_queue, jetter_length, obs_shape = [256,256]):
+    img = tf.image.resize_images(img, [inpSize, inpSize])
+    if addBg:
+        background = tf.decode_raw(features['background'], tf.uint8)
+        background = tf.reshape(background, [160,160,3])
+        background = tf.cast(background, tf.float32)
+        background = (background/255.0) - 0.5
+        background = tf.image.resize_images(background, [bgSize, bgSize])
+        return img, -1.0, 0, background
+    else:
+        return img, -1.0, 0, -1.0
+        
+def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
+                                    addBg):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
@@ -237,44 +208,36 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, jetter_length
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
-    
-    background = tf.decode_raw(features['background'], tf.uint8)
-    background = tf.reshape(background, [160,160,3])
-    background = tf.cast(background, tf.float32)
-    background = (background/255.0) - 0.5
-
     mask = tf.decode_raw(features['mask'],tf.uint8)
     mask = tf.cast(mask, tf.float32)
     mask = tf.reshape(mask, [448,448,1])
     
-    img_mask = tf.concat(2,[img, mask])
-    img_mask = tf.pad(img_mask, [[200,200],[200,200],[0,0]])
-    random_index = tf.random_uniform(
-                            [1],
-                            minval=0,
-                            maxval=9,
-                            dtype=tf.int32)[0]
-    scale1 = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
-    scale2 = scales[random_index]
-    scale = tf.where(random_index < 3, x = scale1, y = scale2)
+    img_mask = tf.concat([img, mask],2)
+    img_mask = tf.pad(img_mask, [[padSize,padSize],[padSize,padSize],[0,0]])
     
-    jetter_range_index = tf.where(random_index < 3, x = 1, y = 2)
-    jettering_min = jetter_length[jetter_range_index][0]*scale
-    jettering_max = jetter_length[jetter_range_index][1]*scale
-    middle_offset_heigh = 200 + 224 - tf.cast(scale * 112, tf.int32)
-    middle_offset_width = 200 + 224 - tf.cast(scale * 112, tf.int32)
+    scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    xc = yc = 224 + padSize
+    xc += tf.random_uniform([1], minval=-pos_shift, maxval=pos_shift, dtype=tf.float32)[0] * scale
+    yc += tf.random_uniform([1], minval=-pos_shift, maxval=pos_shift, dtype=tf.float32)[0] * scale
+    
+    maxDim = 128
+    scale = scale*maxDim*224.0/(160.0*128)
+    side = inpSize * scale
     
     
-    image, mask = crop_random_jettering(img_mask, middle_offset_heigh, middle_offset_width,\
-                            jettering_min, jettering_max, tf.cast(scale * 224, tf.int32))
-    
-    image = tf.image.resize_images(image, [224,224])
-    mask = tf.image.resize_images(mask, [224,224])
-    
-    return image, mask, 0, background
-    
-    
-def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_shape = [256,256]):
+    img, mask = crop_data(img_mask, xc, yc, side, sawyer_data = True)
+    if addBg:
+        background = tf.decode_raw(features['background'], tf.uint8)
+        background = tf.reshape(background, [160,160,3])
+        background = tf.cast(background, tf.float32)
+        background = (background/255.0) - 0.5
+        background = tf.image.resize_images(background, [bgSize, bgSize])
+        return img, mask, 0, background
+    else:
+        return img, mask, 1, -1.0
+
+def read_decode_negative_from_positive_sawyer_data(filename_queue, \
+                            neg_shift_min, neg_shift_max, addBg):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
@@ -283,55 +246,69 @@ def read_decode_positive_example_sawyer_data(filename_queue, jetter_length, obs_
           features={
                   'img': tf.FixedLenFeature([], tf.string),
                   'mask':tf.FixedLenFeature([], tf.string),
-                  'background':tf.FixedLenFeature([], tf.string)
+                  'background': tf.FixedLenFeature([], tf.string),
           })
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
     img = (img/255.0) - 0.5
-    
-    background = tf.decode_raw(features['background'], tf.uint8)
-    background = tf.reshape(background, [160,160,3])
-    background = tf.cast(background, tf.float32)
-    background = (background/255.0) - 0.5
-    
     mask = tf.decode_raw(features['mask'],tf.uint8)
     mask = tf.cast(mask, tf.float32)
     mask = tf.reshape(mask, [448,448,1])
     
-    img_mask = tf.concat(2,[img, mask])
-    img_mask = tf.pad(img_mask, [[200,200],[200,200],[0,0]])
+    img_mask = tf.concat([img, mask], 2)
+    img_mask = tf.pad(img_mask, [[padSize,padSize],[padSize,padSize],[0,0]])
     
-    scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    scale1 = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    scale1 = scale1
+    random_index = tf.random_uniform([1], minval=0, maxval=6, dtype=tf.int32)[0]
+    scale2 = scales[random_index]
+    coin_flip = tf.random_uniform([1], minval=0, maxval=1, dtype=tf.float32)[0]
     
-    middle_offset_heigh = 200+224 - tf.cast(scale * 112, tf.int32)
-    middle_offset_width = 200+224 - tf.cast(scale * 112, tf.int32)
-    jettering_min = jetter_length[0][0]*scale
-    jettering_max = jetter_length[0][1]*scale
+    scale = tf.where(coin_flip < 3/(3+6), x = scale1, y = scale2) # 1/3 probability of using correct scale
+    maxDim = 128
+    scale = scale * maxDim * 224.0/(160.0*128.0)
+    side = scale * inpSize
+
+    shift_min = tf.where(coin_flip < 3/(3+6), x = neg_shift_min, y = 0)
+    shift_max = neg_shift_max
+
+    xc = 224 + padSize
+    yc = 224 + padSize
     
-    image, mask = crop_random_jettering(img_mask, middle_offset_heigh, middle_offset_width,\
-                            jettering_min, jettering_max, tf.cast(scale * 224, tf.int32))
+    #random from -1, 1 decide the jettering direction
+    xc += tf.cast(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]*2-1, tf.float32) * \
+                tf.random_uniform([1], minval=shift_min, maxval=shift_max, \
+                dtype=tf.float32)[0] * scale
+    yc += tf.cast(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]*2-1, tf.float32) * \
+                tf.random_uniform([1], minval=shift_min, maxval=shift_max, \
+                dtype=tf.float32)[0] * scale
+    img, mask = crop_data(img_mask, xc, yc, side)
     
-    image = tf.image.resize_images(image, [224,224])
-    mask = tf.image.resize_images(mask, [224,224])
+    if addBg:
+        background = tf.decode_raw(features['background'], tf.uint8)
+        background = tf.reshape(background, [160,160,3])
+        background = tf.cast(background, tf.float32)
+        background = (background/255.0) - 0.5
+        background = tf.image.resize_images(background, [bgSize, bgSize])
+        return img, -1.0, 0, background
+    else:
+        return img, -1.0, 0, -1.0
 
-    return image, mask, 1, background
-
-
-def inputs_sawyer_data(filenames, mode, pos_max, neg_min,train=True, batch_size=12, num_epochs = None, viz=False):
-    jetter_length = tf.cast(tf.convert_to_tensor([(0, pos_max), (neg_min, 90), (0, 90), (64, 90)]), tf.float32)
-
+def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True, \
+                        batch_size=12, num_epochs=None, viz=False, addBg = False):
     assert (mode in set(["positive", "negative", "negative_from_positive"]))
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
-                filenames, num_epochs=num_epochs, shuffle=True)
+                filenames, num_epochs=None,shuffle=True)
         if mode == "positive":
-            image, mask, score, background = read_decode_positive_example_sawyer_data(filename_queue,jetter_length)
+            image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max, addBg)
         
         elif mode == "negative":
-            image, mask, score, background = read_decode_negative_sawyer_data(filename_queue,jetter_length)
+            image, mask, score, background = read_decode_negative_sawyer_data(filename_queue,addBg)
         elif mode == "negative_from_positive":
-            image, mask, score, background = read_decode_negative_from_positive_sawyer_data(filename_queue,jetter_length)
+            image, mask, score, background = read_decode_negative_from_positive_sawyer_data(filename_queue,\
+                                            neg_min, jetter_max, addBg)
         
         if train:
             num_thread = 20
@@ -344,11 +321,7 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min,train=True, batch_size=
                                 batch_size = batch_size, \
                                 num_threads = num_thread,\
                                 capacity = queue_capacity, enqueue_many =False)
-        
-        image = tf.image.resize_images(image, [160,160])
-        
-        mask = tf.image.resize_images(mask, [112,112])
-        mask = tf.cast(tf.transpose(mask, [3,0,1,2])[0], tf.int32)
-        background = tf.image.resize_images(background, [160, 160])
-        
+    
+        if mode in set(["negative", "negative_from_positive"]):
+            mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype = tf.int32)
         return image, mask, score, background
