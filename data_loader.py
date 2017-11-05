@@ -6,6 +6,7 @@ scales = tf.convert_to_tensor([2**(-1), 2**(-0.75), 2**(-0.5), 2**0.5, 2**(0.75)
 
 axisRatio = 1.75
 inpSize = 192
+bkSize = 160
 maskSize = 112
 
 
@@ -45,6 +46,7 @@ def read_decode_positive_example_poking(filename_queue, shift=24, pad_size=100, 
     data = tf.reshape(data, [240,240,4])
     data = tf.pad(data,[[pad_size,pad_size],[pad_size,pad_size],[0,0]])
     background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
+    background = tf.image.resize_images(background, [bkSize, bkSize])
     
     
     scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
@@ -85,10 +87,11 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min=46, neg_sh
     data = tf.reshape(data, [240,240,4])
     data = tf.pad(data,[[pad_size,pad_size],[pad_size,pad_size],[0,0]])
     background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
+    background = tf.image.resize_images(background, [bkSize, bkSize])
 
 
     #if good range, using bad shift, if bad range, using arbitrary shift
-    random_index = tf.random_uniform([1], minval=0, maxval=5, dtype=tf.int32)[0]
+    random_index = tf.random_uniform([1], minval=0, maxval=6, dtype=tf.int32)[0]
     
 
     scale1 = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
