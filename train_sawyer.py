@@ -60,16 +60,20 @@ def main():
 
     val_set_old_names = list([args.val_set_path + '/' + l for l in os.listdir(args.val_set_path)])
 
-    train_pos_img_poking, train_pos_mask_poking, train_pos_score_poking, train_pos_background_poking = inputs_poking(train_set_old_names,\
-                                    args.pos_max, args.neg_min, batch_size = 4, positive=True)
-    train_neg_img_poking, train_neg_mask_poking, train_neg_score_poking, train_neg_background_poking = \
-                    inputs_poking(train_set_old_names, args.pos_max, args.neg_min,  batch_size = 4, positive=False)
+    train_pos_segment_img_poke, train_pos_segment_mask_poke, train_pos_segment_score_poke, train_pos_segment_background_poke = inputs_poking(train_set_names,\
+                                        pos_max=args.pos_max, neg_min=args.neg_min, positive=True, addBg=args.add_background, batch_size=8)
+
+    train_pos_scoring_img_poke, train_pos_scoring_mask__poke, train_pos_scoring_score_poke, train_pos_scoring_background_poke = inputs_poking(train_set_names, \
+                                        pos_max=0.1, neg_min=args.neg_min, positive=True, addBg=args.add_background, batch_size=4)
+
+    train_neg_img_poke, train_neg_mask_poke, train_neg_score_poke, train_neg_background_poke = inputs_poking(train_set_names,\
+                                        pos_max=args.pos_max, neg_min=args.neg_min, positive=False, addBg=args.add_background, batch_size=4)
     
     
-    train_pos_imgs_sawyer, train_pos_masks_sawyer, train_pos_scores_sawyer, train_pos_background = \
+    train_pos_img_sawyer, train_pos_masks_sawyer, train_pos_scores_sawyer, train_pos_background = \
                                     inputs_sawyer_data(train_set_new_pos_names, "positive", args.pos_max,\
                                                                     args.neg_min, batch_size = 12)
-    train_neg_imgs_sawyer, train_neg_masks_sawyer, train_neg_scores_sawyer, train_neg_background = \
+    train_neg_img_sawyer, train_neg_masks_sawyer, train_neg_scores_sawyer, train_neg_background = \
                                     inputs_sawyer_data(train_set_new_neg_names, "negative", args.pos_max, \
                                                                     args.neg_min,batch_size = 6)
     train_neg_from_pos_imgs, train_neg_from_pos_masks, train_neg_from_pos_scores, train_neg_from_pos_background = \
