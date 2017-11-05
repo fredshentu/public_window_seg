@@ -59,7 +59,9 @@ def resnet_18_network(img_ph, background=None, is_training=False, reuse=False, s
 
 def shared_trunk_resnet(x, reuse=False, dropout=1.0, add_background=False):
     with tf.variable_scope('shared_trunk', reuse=reuse):
-        # import pdb; pdb.set_trace()
+        # First crop
+        x = tf.image.crop_to_bounding_box(x, 1,1,10,10)
+
         if add_background:
             conv1w = new_var('conv1_weights', [1,1,2048,128])
         else:

@@ -27,8 +27,6 @@ def crop_data(data, xc, yc, side, sawyer_data = False):
 
     return image, mask
 
-
-
 def read_decode_positive_example_poking(filename_queue, pos_shift, addBg):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
@@ -67,6 +65,7 @@ def read_decode_positive_example_poking(filename_queue, pos_shift, addBg):
 
 
 def read_decode_negative_example_poking(filename_queue, neg_shift_min, neg_shift_max, addBg):
+
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
@@ -82,6 +81,7 @@ def read_decode_negative_example_poking(filename_queue, neg_shift_min, neg_shift
 
     data = tf.cast(features['data'], tf.float32)
     data = tf.reshape(data, [240,240,4])
+
     background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0])
     data = tf.pad(data,[[padSize,padSize],[padSize,padSize],[0,0]])
     #if good range, using bad shift, if bad range, using arbitrary shift
