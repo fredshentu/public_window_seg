@@ -297,7 +297,7 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, \
     else:
         return img, -1.0, 0, -1.0
 
-def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max, train=True, \
+def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=True, \
                         batch_size=12, num_epochs=None, viz=False, addBg = False):
     assert (mode in set(["positive", "negative", "negative_from_positive"]))
     with tf.name_scope('input'):
