@@ -234,7 +234,7 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
         background = tf.cast(background, tf.float32)
         background = (background/255.0) - 0.5
         background = tf.image.resize_images(background, [bgSize, bgSize])
-        return img, mask, 0, background
+        return img, mask, 1, background
     else:
         return img, mask, 1, -1.0
 
