@@ -195,12 +195,12 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False, back
     print("finish building original graph")
     def model_out(image, background=None, batch = False):
         normalized_image = image/255.0 - 0.5
-        if background is not None:
+        if background_ph is not None:
             normalized_background = background/255.0 - 0.5
         else:
             normalized_background = None
         if debug:
-            if background is None:
+            if background_ph is None:
                 return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image]})
             else:
                 return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image], background_ph: [normalized_background]})
@@ -211,7 +211,7 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False, back
             data_in = [normalized_image]
             bg_in = [normalized_background]
         
-        if background is None:
+        if background_ph is None:
             return sess.run([msk, score], feed_dict = {img_ph:data_in})
         else:
             return sess.run([msk, score], feed_dict = {img_ph:data_in, background_ph: bg_in})
