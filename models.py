@@ -173,7 +173,7 @@ def rebuild_network(img_ph, model_path, model_type, debug = False):
         return sess.run([msk, score], feed_dict = { img_ph:data_in })
     return model_out, sess
     
-def rebuild_original_network(img_ph, model_path, model_type, debug = False):
+def rebuild_original_network(img_ph, model_path, model_type, debug = False, background_ph=None):
     sess = tf.Session()
     support_model_type = ['resnet18', 'resnet50', 'VGG']
     assert model_type in support_model_type
@@ -184,7 +184,8 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False):
     elif model_type == 'VGG':
         raise NotImplemetedError("VGG has been purged")
     #build feature network, no change needed
-    seg_out, score_out = net(img_ph, sess = sess, is_training = False)
+    add_background = background_ph is not None
+    seg_out, score_out = net(img_ph, background=background_ph, sess = sess, is_training = False, add_background=add_background)
     model_saver = tf.train.Saver()
     model_saver.restore(sess, model_path)
     
@@ -192,15 +193,28 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False):
     score = tf.nn.softmax(score_out)
     
     print("finish building original graph")
-    def model_out(image, batch = False):
+    def model_out(image, background=None, batch = False):
         normalized_image = image/255.0 - 0.5
+        if background is not None:
+            normalized_background = background/255.0 - 0.5
+        else:
+            normalized_background = None
         if debug:
-            return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image]})
+            if background is None:
+                return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image]})
+            else:
+                return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image], background_ph: [normalized_background]})
         if batch:
             data_in = normalized_image
+            bg_in = normalized_background
         else:
             data_in = [normalized_image]
-        return sess.run([msk, score], feed_dict = {img_ph:data_in})
+            bg_in = [normalized_background]
+        
+        if background is None:
+            return sess.run([msk, score], feed_dict = {img_ph:data_in})
+        else:
+            return sess.run([msk, score], feed_dict = {img_ph:data_in, background_ph: bg_in})
     return model_out, sess
 
 def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
