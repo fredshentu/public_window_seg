@@ -146,8 +146,8 @@ def main():
 
     train_mask_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=train_pred_mask, labels=train_segment_mask)
     train_label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=train_pred_score, labels=train_scoring_score)
-    train_pred_label_mean = tf.reduce_mean(tf.cast(tf.argmax(tf.nn.softmax(train_pred_score, dim=-1), 1), tf.float32))
-    train_data_label_mean = tf.reduce_mean(tf.cast(train_scoring_score, tf.float32))
+    # train_pred_label_mean = tf.reduce_mean(tf.cast(tf.argmax(tf.nn.softmax(train_pred_score, dim=-1), 1), tf.float32))
+    # train_data_label_mean = tf.reduce_mean(tf.cast(train_scoring_score, tf.float32))
     # import pdb; pdb.set_trace()
     train_label_acc = tf.reduce_mean(tf.cast(tf.equal(tf.cast(train_scoring_score, tf.int64), tf.argmax(tf.nn.softmax(train_pred_score, dim=-1), 1)), tf.float32))
 
@@ -171,8 +171,6 @@ def main():
     loss_summ = []
     loss_summ.append(tf.summary.scalar('train/mask_loss', train_mask_loss))
     loss_summ.append(tf.summary.scalar('train/label_loss', train_label_loss))
-    loss_summ.append(tf.summary.scalar('train/pred_label_mean', train_pred_label_mean))
-    loss_summ.append(tf.summary.scalar('train/pred_data_mean', train_data_label_mean))
     loss_summ.append(tf.summary.scalar('train/label_acc', train_label_acc))
     loss_summ.append(tf.summary.scalar('train/total_loss', train_total_loss))
     loss_summ.append(tf.summary.scalar('decay_loss', decay_loss))
