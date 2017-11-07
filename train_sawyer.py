@@ -18,9 +18,9 @@ def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay, lr_factor, backgroun
 
 def get_lr(timestep, factor = 1):
     # return 1e-3
-    if timestep <= 20000:
+    if timestep <= 50000:
         return 1e-3 * factor
-    elif timestep <= 60000:
+    elif timestep <= 100000:
         return 5e-4 * factor
     else:
         return 1e-4 * factor
