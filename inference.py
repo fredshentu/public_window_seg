@@ -15,7 +15,7 @@ from models import rebuild_network, build_resnet50_network,rebuild_original_netw
 from scipy.misc import imresize
     
 
-half_input_size = 80
+half_input_size = 96
 
 def reference(img):
     pass
@@ -133,15 +133,20 @@ def cut_img(img, center_x, center_y, half_size):
     return img[center_y-half_size:center_y+half_size, center_x-half_size:center_x + half_size,:]
 
 class forward_pass():
-    def __init__(self, model_path, model_type, stride = 16, debug = False):
+    def __init__(self, model_path, model_type, stride = 16, debug = False, addBg=False):
         self.scales = [2**(i*0.25 - 1.25) for i in range(7)]
         self.debug = debug
+        if addBg:
+            bg_ph = tf.placeholder(tf.float32, [None, 160, 160, 3])
+        else:
+            bg_ph = None
+
         if not debug:
             img_ph = tf.placeholder(tf.float32, [None, None, None, 3])
-            self.model_out, self.sess = rebuild_network(img_ph, model_path, model_type)
+            self.model_out, self.sess = rebuild_network(img_ph, model_path, model_type, background_ph=bg_ph)
         else:
-            img_ph = tf.placeholder(tf.float32, [None, 160, 160, 3])
-            self.model_out, self.sess = rebuild_original_network(img_ph, model_path, model_type)
+            img_ph = tf.placeholder(tf.float32, [None, 192, 192, 3])
+            self.model_out, self.sess = rebuild_original_network(img_ph, model_path, model_type, background_ph=bg_ph)
         # msk, score = self.model_out(np.zeros([224,224,3]))
         # print(msk)
         # print(score)
@@ -150,6 +155,9 @@ class forward_pass():
         self.sorted_small_windows = None
         self.img_in = None
         self.stride = stride
+
+        self.addBg = addBg
+
     def msk_cut_score_NMS(self, score_tr = 0.99, nms_tr = 0.4, firstn  = None):
         obj_small_windows = []
         for small_window in reversed(self.sorted_small_windows):
@@ -176,10 +184,14 @@ class forward_pass():
             return result[:firstn]
         else:
             return result
-    def compute_multi_scale_slicing_window(self, img_in, msk_thr = 0.6):
+    def compute_multi_scale_slicing_window(self, img_in, background, msk_thr = 0.6):
         #for fair comparison, stride is 16 as well
         self.img_in = img_in.copy()
         small_window_list = []
+
+        if not self.addBg:
+            background = None
+
         for scale in self.scales:
             # print("scale {}".format(scale))
             scaled_img = imresize(img_in, [int(img_in.shape[0]*scale),int(img_in.shape[1]*scale)])
@@ -203,12 +215,13 @@ class forward_pass():
             scores = []
             for i in range(num_batchs):
                 # print('batch index {}'.format(i))
-                # import pdb; pdb.set_trace()
-                msks_batch, scores_batch = self.model_out(slice_windows[batch_size*i:batch_size*(i+1),:,:,:], batch = True)
+                backgrounds = np.stack([background for _ in range(batch_size)], axis=0)
+                msks_batch, scores_batch = self.model_out(slice_windows[batch_size*i:batch_size*(i+1),:,:,:], background=backgrounds, batch = True)
                 msks.append(msks_batch)
                 scores.append(scores_batch)
             if residue != 0:
-                msks_batch, scores_batch = self.model_out(slice_windows[batch_size*(num_batchs):,:,:,:], batch = True)
+                backgrounds = np.stack([background for _ in range(len(slice_windows[batch_size*(num_batchs):,:,:,:]))], axis=0)
+                msks_batch, scores_batch = self.model_out(slice_windows[batch_size*(num_batchs):,:,:,:], background=backgrounds, batch = True)
                 msks.append(msks_batch)
                 scores.append(scores_batch)
             msks = np.vstack(msks)

@@ -28,7 +28,7 @@ def crop_data(data, xc, yc, side, sawyer_data = False):
 
     return image, mask
 
-def read_decode_positive_example_poking(filename_queue, pos_shift, addBg):
+def read_decode_positive_example_poking(filename_queue, pos_shift, addBg, do_scale=True):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
@@ -47,7 +47,11 @@ def read_decode_positive_example_poking(filename_queue, pos_shift, addBg):
     background = tf.transpose(tf.gather(tf.transpose(data, [2,0,1]), [0,1,2]), [1,2,0]) #240x240
     data = tf.pad(data,[[padSize,padSize],[padSize,padSize],[0,0]])
     
-    scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    if do_scale:
+        scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    else:
+        scale = 1.0
+
     scale = scale * maxDim * 224.0/(160.0*128.0)
     side = scale * inpSize
 
@@ -128,13 +132,15 @@ def inputs_poking(filenames,
             batch_size=16, 
             positive=True, 
             viz=False, 
-            addBg = False):
+            addBg = False,
+            do_scale_pos_scoring=True,
+    ):
     
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(filenames, num_epochs=None)
         if positive:
             image, mask, score, background = read_decode_positive_example_poking(filename_queue, \
-                                            pos_max, addBg)
+                                            pos_max, addBg, do_scale=do_scale_pos_scoring)
         
         else:
             image, mask, score, background = read_decode_negative_example_poking(filename_queue, \
@@ -195,7 +201,7 @@ def read_decode_negative_sawyer_data(filename_queue,\
         return img, -1.0, 0, -1.0
         
 def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
-                                    addBg):
+                                    addBg, do_scale=True):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
@@ -217,7 +223,11 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
     img_mask = tf.concat([img, mask],2)
     img_mask = tf.pad(img_mask, [[padSize,padSize],[padSize,padSize],[0,0]])
     
-    scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    if do_scale:
+        scale = tf.pow(2.0, tf.random_uniform([1], -0.25, 0.25))[0]
+    else:
+        scale = 1.0
+
     xc = yc = 224 + padSize
     xc += tf.random_uniform([1], minval=-pos_shift, maxval=pos_shift, dtype=tf.float32)[0] * scale
     yc += tf.random_uniform([1], minval=-pos_shift, maxval=pos_shift, dtype=tf.float32)[0] * scale
@@ -234,7 +244,7 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
         background = tf.cast(background, tf.float32)
         background = (background/255.0) - 0.5
         background = tf.image.resize_images(background, [bgSize, bgSize])
-        return img, mask, 0, background
+        return img, mask, 1, background
     else:
         return img, mask, 1, -1.0
 
@@ -298,13 +308,13 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, \
         return img, -1.0, 0, -1.0
 
 def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=True, \
-                        batch_size=12, num_epochs=None, viz=False, addBg = False):
+                        batch_size=12, num_epochs=None, viz=False, addBg = False, do_scale_pos_scoring=True):
     assert (mode in set(["positive", "negative", "negative_from_positive"]))
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
                 filenames, num_epochs=None,shuffle=True)
         if mode == "positive":
-            image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max, addBg)
+            image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max, addBg, do_scale=do_scale_pos_scoring)
         
         elif mode == "negative":
             image, mask, score, background = read_decode_negative_sawyer_data(filename_queue,addBg)
