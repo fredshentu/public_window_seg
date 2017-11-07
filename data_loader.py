@@ -158,7 +158,7 @@ def inputs_poking(filenames,
                                             neg_min, neg_max, addBg)
 
         num_thread = 1 if viz else 4
-        queue_capacity = 300 if viz else 3000
+        queue_capacity = 300 if viz else 5000
 
         image, mask, score, background = tf.train.shuffle_batch([image, mask, score, background],
                 min_after_dequeue=10 if viz else 1000 , \
@@ -170,8 +170,8 @@ def inputs_poking(filenames,
         image = (image / 255.0) - 0.5
         background = tf.cast(background, tf.float32)
         background = (background / 255.0) - 0.5
-        mask = tf.cast(mask, tf.float32)
-
+        mask = tf.cast(mask, tf.int32)
+        score = tf.cast(score, tf.int32)
         if not positive: #mask dequeued is [-1.0, -1.0, -1.0....]
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype=tf.int32)
 
@@ -341,10 +341,10 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=T
 
         if train:
             num_thread = 20
-            queue_capacity = 100 if viz else 3000
+            queue_capacity = 100 if viz else 5000
         else:
             num_thread = 4
-            queue_capacity = 100 if viz else 3000
+            queue_capacity = 100 if viz else 5000
         image, mask, score, background = tf.train.shuffle_batch([image, mask, score, background],
                                 min_after_dequeue=1000 , \
                                 batch_size = batch_size, \
@@ -356,7 +356,7 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=T
         background = tf.cast(background, tf.float32)
         image = (image / 255.0) - 0.5
         background= (background / 255.0) - 0.5
-
+        score = tf.cast(score, tf.int32)
         if mode in set(["negative", "negative_from_positive"]):
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype = tf.int32)
         return image, mask, score, background

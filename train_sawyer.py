@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--pretrain_path', type=str, default=None, help='path of pretrained model')
+    parser.add_argument('--runid', type=str, default='')
     parser.add_argument('--train_set_path_old', type=str, default='/media/icm_data/poke_nlc_training_new')
     parser.add_argument('--val_set_path', type=str, default='/media/icm_data/poke_nlc_val_new')
     parser.add_argument('--tfmodel_path', type=str, default='/home/fred/Desktop/resnet_seg/models')
@@ -166,7 +167,9 @@ def main():
 
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
 
-    model_name = gen_name('train_sgd', args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.weight_decay, args.lr_factor, args.add_background, args.no_scale_pos_scoring)
+    if args.runid != '':
+        args.runid = args.runid + '_'
+    model_name = gen_name('%strain_sgd'%args.runid, args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.weight_decay, args.lr_factor, args.add_background, args.no_scale_pos_scoring)
 
     summary_writer = tf.summary.FileWriter(args.tfboard_path +'/'+model_name, graph=tf.get_default_graph())
     model_saver = tf.train.Saver()
