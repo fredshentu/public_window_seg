@@ -252,12 +252,12 @@ def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_t
     return mask, score
 
 def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, \
-                            is_training=True, dropout=1.0, add_background=False, background_share_w = False):
+                            is_training=True, dropout=1.0, add_background=False, background_diff_w = False):
     x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
     # import pdb; pdb.set_trace()
     x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
     if add_background:
-        if not background_share_w:
+        if not background_diff_w:
             y = resnet_18_network(background, reuse=True, is_training=is_training)
         else:
             with tf.variable_scope("background_resnet"):

@@ -12,7 +12,7 @@ slim = tf.contrib.slim
 
 
 def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay, lr_factor, background, bk_share_w,no_scale_pos_scoring):
-    return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f_lr_factor%.2f_background_%s_bk_share_w_%s_no_scale_pos_%s' % \
+    return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f_lr_factor%.2f_background_%s_bk_diff_w_%s_no_scale_pos_%s' % \
                         (prefix, trunk, ratio, pos_max, neg_min, decay, lr_factor, background, bk_share_w, no_scale_pos_scoring)
 
 
@@ -50,7 +50,7 @@ def main():
     parser.add_argument('--num_itr', type=int, default=200000)
     parser.add_argument('--trunk', type=str, choices=['resnet50', 'resnet18'], default='resnet18')
     parser.add_argument('--add_background', action='store_true')
-    parser.add_argument('--background_share_w', action='store_true')
+    parser.add_argument('--background_diff_w', action='store_true')
     parser.add_argument('--no_scale_pos_scoring', action='store_true')
     
     args = parser.parse_args()
@@ -146,10 +146,10 @@ def main():
     elif args.trunk == 'resnet18':
         _, train_pred_score = build_resnet18_network(train_scoring_img, background=train_scoring_background,\
                 sess=sess, reuse=False, is_training=True, dropout=0.5, add_background=args.add_background, \
-                background_share_w = args.background_share_w)
+                background_diff_w = args.background_diff_w)
         train_pred_mask, _  = build_resnet18_network(train_segment_img, background=train_segment_background,\
                 sess=sess, reuse=True, is_training=True, dropout=0.5, add_background=args.add_background, \
-                background_share_w = args.background_share_w)
+                background_diff_w = args.background_diff_w)
         sess.run(tf.initialize_all_variables()) # Initialize ResNet params
 
     if args.pretrain_path:
@@ -181,7 +181,7 @@ def main():
     if args.runid != '':
         args.runid = args.runid + '_'
     model_name = gen_name('%strain_sgd'%args.runid, args.mask_ratio, args.pos_max, args.neg_min, args.trunk, \
-                    args.weight_decay, args.lr_factor, args.add_background,args.background_share_w, \
+                    args.weight_decay, args.lr_factor, args.add_background,args.background_diff_w, \
                     args.no_scale_pos_scoring)
 
     summary_writer = tf.summary.FileWriter(args.tfboard_path +'/'+model_name, graph=tf.get_default_graph())
