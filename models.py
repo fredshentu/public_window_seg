@@ -19,6 +19,8 @@ import sys
 #         else:
 #             net_data = pickle.load(f)
 
+
+
 def var(name, data, trainable):
     return tf.get_variable(name, initializer=tf.constant(data),trainable=trainable)
 
@@ -125,7 +127,7 @@ def rebuild_score_head(reuse = False):
         fcob = new_var('fco_bias', [2])
     return [fc1w, fc1b, fcow, fcob]
 
-def rebuild_network(img_ph, model_path, model_type, debug = False):
+def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False, background_ph = None):
     sess = tf.Session()
     support_model_type = ['resnet18', 'resnet50', 'VGG']
     assert model_type in support_model_type
@@ -138,7 +140,8 @@ def rebuild_network(img_ph, model_path, model_type, debug = False):
         raise NotImplemetedError("VGG has been purged")
     #build feature network, no change needed
     feature_net_out = feature_net(img_ph, is_training = False)
-
+    feature_net_out =  feature_net_out[:,1:,1:,:]
+    feature_net_pit = feature_net_out[:,:-1,:-1,:]
     conv_out, share_truck_vars = rebuild_shared_trunk(feature_net_out)
     seg_head_vars = rebuild_seg_head()
     score_head_vars = rebuild_score_head()
@@ -160,15 +163,28 @@ def rebuild_network(img_ph, model_path, model_type, debug = False):
     score = tf.nn.softmax(score_out)
 
     print("finish building graph, all operator have been convolized")
-    def model_out(image, batch = False):
+    def model_out(image, background=None, batch = False):
         normalized_image = image/255.0 - 0.5
+        if background_ph is not None:
+            normalized_background = background/255.0 - 0.5
+        else:
+            normalized_background = None
         if debug:
-            return sess.run([seg_out, score_out, conv_out,feature_net_out], feed_dict = {img_ph:[normalized_image]})
+            if background_ph is None:
+                return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image]})
+            else:
+                return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image], background_ph: [normalized_background]})
         if batch:
             data_in = normalized_image
+            bg_in = normalized_background
         else:
             data_in = [normalized_image]
-        return sess.run([msk, score], feed_dict = { img_ph:data_in })
+            bg_in = [normalized_background]
+
+        if background_ph is None:
+            return sess.run([msk, score], feed_dict = {img_ph:data_in})
+        else:
+            return sess.run([msk, score], feed_dict = {img_ph:data_in, background_ph: bg_in})
     return model_out, sess
 
 def rebuild_original_network(img_ph, model_path, model_type, debug = False, background_ph=None):

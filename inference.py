@@ -11,7 +11,7 @@ import numpy as np
 import pickle
 import os
 from scipy.misc import imresize
-from models import rebuild_network, build_resnet50_network,rebuild_original_network
+from models import rebuild_network_full_conv, build_resnet50_network,rebuild_original_network
 from scipy.misc import imresize
     
 
@@ -143,7 +143,7 @@ class forward_pass():
 
         if not debug:
             img_ph = tf.placeholder(tf.float32, [None, None, None, 3])
-            self.model_out, self.sess = rebuild_network(img_ph, model_path, model_type, background_ph=bg_ph)
+            self.model_out, self.sess = rebuild_network_full_conv(img_ph, model_path, model_type, background_ph=bg_ph)
         else:
             img_ph = tf.placeholder(tf.float32, [None, 192, 192, 3])
             self.model_out, self.sess = rebuild_original_network(img_ph, model_path, model_type, background_ph=bg_ph)
@@ -158,13 +158,15 @@ class forward_pass():
 
         self.addBg = addBg
 
-    def msk_cut_score_NMS(self, score_tr = 0.99, nms_tr = 0.4, firstn  = None):
+    def msk_cut_score_NMS(self, score_tr = 0.99, nms_tr = 0.4, NMSfirstn = 10, score_firstn = 100):
         obj_small_windows = []
         for small_window in reversed(self.sorted_small_windows):
             obj_small_windows.append(small_window)
             if small_window.score < score_tr:
                 break
-        return self.NMS(obj_small_windows, nms_tr = nms_tr,firstn = None)
+        if len(obj_small_windows) > score_firstn:
+            obj_small_windows = obj_small_windows[:score_firstn]
+        return self.NMS(obj_small_windows, nms_tr = nms_tr, firstn = NMSfirstn)
     def score_heatmap(self):
         result_score_map = np.zeros_like(self.img_in[:,:,0]).astype(np.float32)
         for small_w in self.sorted_small_windows:
@@ -184,7 +186,7 @@ class forward_pass():
             return result[:firstn]
         else:
             return result
-    def compute_multi_scale_slicing_window(self, img_in, background, msk_thr = 0.6):
+    def compute_multi_scale_slicing_window(self, img_in, background = None, msk_thr = 0.6):
         #for fair comparison, stride is 16 as well
         self.img_in = img_in.copy()
         small_window_list = []
@@ -239,7 +241,7 @@ class forward_pass():
         small_window_list.sort()
         self.sorted_small_windows = small_window_list
         return small_window_list
-    def compute_multiscale_masks(self, img_in, msk_thr = 0.5):
+    def compute_multiscale_masks(self, img_in, background = None, msk_thr = 0.5):
         if self.debug:
             print("debug model, only support caonoical slicing window model")
             raise NotImplementedError
@@ -249,7 +251,7 @@ class forward_pass():
             # print("scale {}".format(scale))
             scaled_img = imresize(img_in, [int(img_in.shape[0]*scale),int(img_in.shape[1]*scale)])
             scaled_img_hw = scaled_img.shape[:2]
-            msk, score = self.model_out(scaled_img)
+            msk, score = self.model_out(scaled_img, background)
             msk = msk[:,:,:,1] #prob of 1
             msk = (msk > msk_thr).astype(np.uint8)#msk cut score threshold
             score = score[:,:,:,1] #score
