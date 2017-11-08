@@ -54,7 +54,10 @@ def resnet_50_network(img_ph, background=None, is_training=False, reuse=False, s
 def resnet_18_network(img_ph, background=None, is_training=False, reuse=False, scope=None):
     with slim.arg_scope(resnet_v1.resnet_arg_scope()):
       _, end_points = resnet_v1.resnet_v1_18(img_ph, reuse=reuse, is_training=is_training)
-    x = end_points['resnet_v1_18/block3/unit_1/bottleneck_v1']
+    if scope is None:
+        x = end_points['resnet_v1_18/block3/unit_1/bottleneck_v1']
+    else:
+        x = end_points['%s/resnet_v1_18/block3/unit_1/bottleneck_v1'%scope]
     return x
 
 def shared_trunk_resnet(x, reuse=False, dropout=1.0, add_background=False):
@@ -248,12 +251,19 @@ def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_t
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
     return mask, score
 
-def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
+def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, \
+                            is_training=True, dropout=1.0, add_background=False, background_share_w = False):
     x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
     # import pdb; pdb.set_trace()
     x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
     if add_background:
-        y = resnet_18_network(background, reuse=True, is_training=is_training)
+        if not background_share_w:
+            y = resnet_18_network(background, reuse=True, is_training=is_training)
+        else:
+            with tf.variable_scope("background_resnet"):
+                # import pdb; pdb.set_trace()
+                y = resnet_18_network(background, reuse=reuse, is_training=is_training,\
+                    scope = "background_resnet")
         x = tf.concat([x, y], 3)
     x = shared_trunk_resnet(x, reuse=reuse, dropout=dropout, add_background=add_background)
     mask = seg_head(x, reuse=reuse, dropout=dropout)

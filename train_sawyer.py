@@ -11,9 +11,9 @@ from data_loader import inputs_poking, inputs_sawyer_data
 slim = tf.contrib.slim
 
 
-def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay, lr_factor, background, no_scale_pos_scoring):
-    return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f_lr_factor%.2f_background_%s_no_scale_pos_%s' % (prefix, \
-                            trunk, ratio, pos_max, neg_min, decay, lr_factor, background, no_scale_pos_scoring)
+def gen_name(prefix, ratio, pos_max, neg_min, trunk, decay, lr_factor, background, bk_share_w,no_scale_pos_scoring):
+    return '%s_%s_lambda_%.2f_a_%d_b_%d_decay_%.5f_lr_factor%.2f_background_%s_bk_share_w_%s_no_scale_pos_%s' % \
+                        (prefix, trunk, ratio, pos_max, neg_min, decay, lr_factor, background, bk_share_w, no_scale_pos_scoring)
 
 
 def get_lr(timestep, factor = 1):
@@ -50,7 +50,9 @@ def main():
     parser.add_argument('--num_itr', type=int, default=200000)
     parser.add_argument('--trunk', type=str, choices=['resnet50', 'resnet18'], default='resnet18')
     parser.add_argument('--add_background', action='store_true')
+    parser.add_argument('--background_share_w', action='store_true')
     parser.add_argument('--no_scale_pos_scoring', action='store_true')
+    
     args = parser.parse_args()
 
     train_set_old_names = list([args.train_set_path_old + '/' + l for l in os.listdir(args.train_set_path_old)])
@@ -123,7 +125,10 @@ def main():
         train_neg_background_sawyer,
         train_neg_from_pos_background_sawyer,
     ], 0)
-
+    # print(train_scoring_background.get_shape().as_list())
+    # print(train_segment_background.get_shape().as_list())
+    # import pdb; pdb.set_trace()
+    
 
 
     learning_rate = tf.placeholder(tf.float32, [])
@@ -134,11 +139,17 @@ def main():
     if args.trunk == 'vgg':
         raise NotImplementedError("VGG code is no longer supported --Deepak")
     elif args.trunk == 'resnet50':
-        _, train_pred_score = build_resnet50_network(train_scoring_img, background=train_scoring_background, sess=sess, reuse=False, is_training=False, dropout=0.5, add_background=args.add_background)
-        train_pred_mask, _  = build_resnet50_network(train_segment_img, background=train_segment_background, sess=sess, reuse=True, is_training=False, dropout=0.5, add_background=args.add_background)
+        _, train_pred_score = build_resnet50_network(train_scoring_img, background=train_scoring_background,\
+                sess=sess, reuse=False, is_training=False, dropout=0.5, add_background=args.add_background)
+        train_pred_mask, _  = build_resnet50_network(train_segment_img, background=train_segment_background,\
+                sess=sess, reuse=True, is_training=False, dropout=0.5, add_background=args.add_background)
     elif args.trunk == 'resnet18':
-        _, train_pred_score = build_resnet18_network(train_scoring_img, background=train_scoring_background, sess=sess, reuse=False, is_training=True, dropout=0.5, add_background=args.add_background)
-        train_pred_mask, _  = build_resnet18_network(train_segment_img, background=train_segment_background, sess=sess, reuse=True, is_training=True, dropout=0.5, add_background=args.add_background)
+        _, train_pred_score = build_resnet18_network(train_scoring_img, background=train_scoring_background,\
+                sess=sess, reuse=False, is_training=True, dropout=0.5, add_background=args.add_background, \
+                background_share_w = args.background_share_w)
+        train_pred_mask, _  = build_resnet18_network(train_segment_img, background=train_segment_background,\
+                sess=sess, reuse=True, is_training=True, dropout=0.5, add_background=args.add_background, \
+                background_share_w = args.background_share_w)
         sess.run(tf.initialize_all_variables()) # Initialize ResNet params
 
     if args.pretrain_path:
@@ -169,7 +180,9 @@ def main():
 
     if args.runid != '':
         args.runid = args.runid + '_'
-    model_name = gen_name('%strain_sgd'%args.runid, args.mask_ratio, args.pos_max, args.neg_min, args.trunk, args.weight_decay, args.lr_factor, args.add_background, args.no_scale_pos_scoring)
+    model_name = gen_name('%strain_sgd'%args.runid, args.mask_ratio, args.pos_max, args.neg_min, args.trunk, \
+                    args.weight_decay, args.lr_factor, args.add_background,args.background_share_w, \
+                    args.no_scale_pos_scoring)
 
     summary_writer = tf.summary.FileWriter(args.tfboard_path +'/'+model_name, graph=tf.get_default_graph())
     model_saver = tf.train.Saver()

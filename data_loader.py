@@ -174,8 +174,15 @@ def inputs_poking(filenames,
         score = tf.cast(score, tf.int32)
         if not positive: #mask dequeued is [-1.0, -1.0, -1.0....]
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype=tf.int32)
-
+        
         #if not addBg, background = [-1.0, -1.0, -1.0 ......]
+        
+        # #hard coded by fred
+        # if addBg:
+        #     background = tf.image.crop_to_bounding_box(background, 40, 40, \
+        #                                                     80 ,80)
+        #     background = tf.image.resize_images(background, [160, 160])
+        
         return image, mask, score, background
 
 
@@ -357,6 +364,14 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=T
         image = (image / 255.0) - 0.5
         background= (background / 255.0) - 0.5
         score = tf.cast(score, tf.int32)
+        # #hard coded by fred
+        # if addBg:
+        #     background = tf.image.crop_to_bounding_box(background, 40, 40, \
+        #                                                     80 ,80)
+        #     background = tf.image.resize_images(background, [160, 160])
         if mode in set(["negative", "negative_from_positive"]):
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype = tf.int32)
         return image, mask, score, background
+
+
+
