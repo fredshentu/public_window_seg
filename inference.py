@@ -2,7 +2,7 @@
 DeepMask reference
 
 """
-
+from __future__ import division
 import tensorflow as tf
 from tensorflow.contrib.layers import xavier_initializer
 
