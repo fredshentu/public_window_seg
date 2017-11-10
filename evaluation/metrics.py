@@ -36,7 +36,7 @@ class Metrics(object):
                 npos += iou.shape[0]
             rec.append(tp / float(npos))
             prec.append(tp / np.maximum(tp + fp, np.finfo(np.float64).eps))
-        return np.nanmean(prec), prec, rec
+        return np.nanmean(prec), np.nanmean(rec), prec, rec
 
     def ABO(self, score=None):
         abo = []
@@ -61,7 +61,7 @@ if __name__ == '__main__':
     startTime = time.time()
     parser = argparse.ArgumentParser(description="Metric Evaluator")
     parser.add_argument('-gp', '--gtpath', type=str, help="gt path",
-        default="./evaluate_models/ground_truth_msk.npy")
+        default="./savedOutputs/ground_truth_msk.npy")
     parser.add_argument('-mp', '--mpath', type=str, help="model path")
     parser.add_argument('-k', '--maxprop', type=int, default=20,
         help="max limit on number of predicted proposals per image")
@@ -75,6 +75,7 @@ if __name__ == '__main__':
 
     metric = Metrics()
     for i in range(len(modelList)):
+        # if i>=30 and i<=34: continue
         for j in range(len(modelList[i])):
             gt = gtList[i].reshape((gtList[i].shape[0], -1))
             pred = np.array(modelList[i][j])
@@ -84,21 +85,25 @@ if __name__ == '__main__':
             print('adding im=%02d th=%02d' % (i+1,j+1))
             metric.add(gt, pred, score)
 
-    ap3, pr3, rec3 = metric.AP(0.3)
-    ap5, pr5, rec5 = metric.AP(0.5)
-    abo, covering = metric.ABO()
+    ap3, ar3, pr3, rec3 = metric.AP(0.3)
+    ap5, ar5, pr5, rec5 = metric.AP(0.5)
+    abo, cov = metric.ABO()
     print('\n------------------------------------------')
     print('Time taken: %.2f secs' % (time.time()-startTime))
     print('Max predicted proposals per image allowed: %d' % args.maxprop)
     print('Model Name: %s' % args.mpath)
     print('GT Name: %s' % args.gtpath)
     print('\nAP at .3: %.2f' % (100*ap3))
+    print('AR at .3: %.2f' % (100*ar3))
     print('prec: ', [round(100*i, 2) for i in pr3])
     print('rec: ', [round(100*i, 2) for i in rec3])
     print('\nAP at .5: %.2f' % (100*ap5))
+    print('AR at .5: %.2f' % (100*ar5))
     print('prec: ', [round(100*i, 2) for i in pr5])
     print('rec: ', [round(100*i, 2) for i in rec5])
     print('\nABO: ', [round(100*i, 2) for i in abo])
-    print('\nCovering: ', [round(100*i, 2) for i in covering])
+    print('bestABO: %.2f at th: %s' % (100*np.max(abo), thList[np.argmax(abo)]))
+    print('\nCovering: ', [round(100*i, 2) for i in cov])
+    print('bestCov: %.2f at th: %s' % (100*np.max(cov), thList[np.argmax(cov)]))
     print('------------------------------------------\n')
     # import IPython; IPython.embed()
