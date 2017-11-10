@@ -1,7 +1,7 @@
 '''
 Utils for VGG netoworks and seg/scoring network
 '''
-from __future__ import division
+
 
 import tensorflow as tf
 from tensorflow.contrib.layers import xavier_initializer
@@ -78,10 +78,13 @@ def shared_trunk_resnet(x, reuse=False, dropout=1.0, add_background=False):
 
     return x
 
-def rebuild_shared_trunk_resnet(x, reuse=False, dropout=1.0):
+def rebuild_shared_trunk_resnet(x, reuse=False, dropout=1.0, add_background=False):
     with tf.variable_scope('shared_trunk', reuse=reuse):
         # import pdb; pdb.set_trace()
-        conv1w = new_var('conv1_weights', [1,1,1024,128])
+        if add_background:
+            conv1w = new_var('conv1_weights', [1,1,2048,128])
+        else:
+            conv1w = new_var('conv1_weights', [1,1,1024,128])
         conv1b = new_var('conv1_bias', [128])
         x = conv(x, conv1w, conv1b, 1,1,128,1,1, 'VALID')
         x = tf.nn.relu(x)
@@ -130,7 +133,9 @@ def rebuild_score_head(reuse = False):
         fcob = new_var('fco_bias', [2])
     return [fc1w, fc1b, fcow, fcob]
 
-def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False, background_ph = None):
+def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False,\
+                                background_ph = None):
+    addBg = False
     sess = tf.Session()
     support_model_type = ['resnet18', 'resnet50', 'VGG']
     assert model_type in support_model_type
@@ -144,8 +149,21 @@ def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False, bac
     #build feature network, no change needed
     feature_net_out = feature_net(img_ph, is_training = False)
     feature_net_out =  feature_net_out[:,1:,1:,:]
-    feature_net_pit = feature_net_out[:,:-1,:-1,:]
-    conv_out, share_truck_vars = rebuild_shared_trunk(feature_net_out)
+    feature_net_out = feature_net_out[:,:-1,:-1,:]
+    """
+    With background added, the network can not be fully convolutionary anymore
+    """
+    # if background_ph is not None:
+    #     addBg = True
+    #     if not background_diff_w:
+    #         #share weght with the feature net
+    #         background_net_out = feature_net(background_ph, is_training = False, reuse = True)
+    #     else:
+    #         with tf.variable_scope("background_resnet"):
+    #             background_net_out = feature_net(background_ph, is_training = False,\
+    #                                 reuse = False, scope = "background_resnet")
+    
+    conv_out, share_trunk_vars = rebuild_shared_trunk(feature_net_out)
     seg_head_vars = rebuild_seg_head()
     score_head_vars = rebuild_score_head()
     #load pretrained weights
@@ -153,7 +171,7 @@ def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False, bac
     model_saver.restore(sess, model_path)
 
     #make the model fully convolutionary
-    conv_out = Fc2Conv(conv_out, *share_truck_vars)
+    conv_out = Fc2Conv(conv_out, *share_trunk_vars)
 
     seg_out = Fc2Conv(conv_out, *seg_head_vars)#out is 1x1x6272
     seg_out = tf.reshape(seg_out, [-1,56,56,2])
@@ -190,7 +208,8 @@ def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False, bac
             return sess.run([msk, score], feed_dict = {img_ph:data_in, background_ph: bg_in})
     return model_out, sess
 
-def rebuild_original_network(img_ph, model_path, model_type, debug = False, background_ph=None):
+def rebuild_original_network(img_ph, model_path, model_type, debug = False, background_ph=None,\
+                            background_diff_w = False):
     sess = tf.Session()
     support_model_type = ['resnet18', 'resnet50', 'VGG']
     assert model_type in support_model_type
@@ -202,7 +221,9 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False, back
         raise NotImplemetedError("VGG has been purged")
     #build feature network, no change needed
     add_background = background_ph is not None
-    seg_out, score_out = net(img_ph, background=background_ph, sess = sess, is_training = False, add_background=add_background)
+    seg_out, score_out = net(img_ph, background=background_ph, sess = sess,\
+                        is_training = False, add_background=add_background,\
+                        background_diff_w = background_diff_w)
     model_saver = tf.train.Saver()
     model_saver.restore(sess, model_path)
 

@@ -126,27 +126,31 @@ class small_window():
         
         result[real_y-half_window_size:real_y+half_window_size, real_x-half_window_size:real_x+half_window_size] = \
                             resized_msk
-        
+        result = (result > 0).astype(np.uint8)
         return result[:-200,:-200]
 
 def cut_img(img, center_x, center_y, half_size):
     return img[center_y-half_size:center_y+half_size, center_x-half_size:center_x + half_size,:]
 
 class forward_pass():
-    def __init__(self, model_path, model_type, stride = 16, debug = False, addBg=False):
+    def __init__(self, model_path, model_type, stride = 16, debug = False, addBg=False, background_diff_w = False):
         self.scales = [2**(i*0.25 - 1.25) for i in range(7)]
         self.debug = debug
         if addBg:
             bg_ph = tf.placeholder(tf.float32, [None, 160, 160, 3])
         else:
             bg_ph = None
-
-        if not debug:
-            img_ph = tf.placeholder(tf.float32, [None, None, None, 3])
-            self.model_out, self.sess = rebuild_network_full_conv(img_ph, model_path, model_type, background_ph=bg_ph)
+        if not addBg:
+            if not debug:
+                img_ph = tf.placeholder(tf.float32, [None, None, None, 3])
+                self.model_out, self.sess = rebuild_network_full_conv(img_ph, model_path, model_type, background_ph=bg_ph)
+            else:
+                img_ph = tf.placeholder(tf.float32, [None, 192, 192, 3])
+                self.model_out, self.sess = rebuild_original_network(img_ph, model_path, model_type, background_ph=bg_ph)
         else:
             img_ph = tf.placeholder(tf.float32, [None, 192, 192, 3])
-            self.model_out, self.sess = rebuild_original_network(img_ph, model_path, model_type, background_ph=bg_ph)
+            self.model_out, self.sess = rebuild_original_network(img_ph, model_path, model_type, background_ph=bg_ph,\
+                                        background_diff_w = background_diff_w)
         # msk, score = self.model_out(np.zeros([224,224,3]))
         # print(msk)
         # print(score)
@@ -177,10 +181,11 @@ class forward_pass():
         result = [sorted_small_windows[0].generate_full_size_msk(self.img_in)] #list of class small_window
         for w in sorted_small_windows[1:]:
             new_full_size_msk = w.generate_full_size_msk(self.img_in)
+            size_new_msk = np.sum(new_full_size_msk)
             max_iou = 0
             for s in result:
                 max_iou = max(max_iou, iou(s, new_full_size_msk))
-            if max_iou < nms_tr:
+            if max_iou < nms_tr and size_new_msk > 600:
                 result.append(new_full_size_msk)
         if (firstn is not None) and len(result) > firstn:
             return result[:firstn]
@@ -189,7 +194,7 @@ class forward_pass():
     def compute_multi_scale_slicing_window(self, img_in, background = None, msk_thr = 0.6):
         #for fair comparison, stride is 16 as well
         self.img_in = img_in.copy()
-        small_window_list = []
+        small_window_list = [] 
 
         if not self.addBg:
             background = None
