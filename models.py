@@ -136,7 +136,9 @@ def rebuild_score_head(reuse = False):
 def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False,\
                                 background_ph = None):
     addBg = False
-    sess = tf.Session()
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
     support_model_type = ['resnet18', 'resnet50', 'VGG']
     assert model_type in support_model_type
     rebuild_shared_trunk = rebuild_shared_trunk_resnet
@@ -210,7 +212,10 @@ def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False,\
 
 def rebuild_original_network(img_ph, model_path, model_type, debug = False, background_ph=None,\
                             background_diff_w = False):
-    sess = tf.Session()
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
+    
     support_model_type = ['resnet18', 'resnet50', 'VGG']
     assert model_type in support_model_type
     if model_type == 'resnet18':
@@ -271,6 +276,32 @@ def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_t
     score = score_head(x, reuse=reuse, dropout=dropout)
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
     return mask, score
+
+def build_resnet18_network_bootstrap(img_ph, background=None, sess=None, reuse=False, \
+                            is_training=True, dropout=1.0, add_background=False, \
+                            background_diff_w = False, num_heads = 5):
+    x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
+    # import pdb; pdb.set_trace()
+    x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
+    if add_background:
+        if not background_diff_w:
+            y = resnet_18_network(background, reuse=True, is_training=is_training)
+        else:
+            with tf.variable_scope("background_resnet"):
+                # import pdb; pdb.set_trace()
+                y = resnet_18_network(background, reuse=reuse, is_training=is_training,\
+                    scope = "background_resnet")
+        x = tf.concat([x, y], 3)
+    masks = []
+    scores = []
+    for head_index in range(1, num_heads+1):
+        with tf.variable_scope("head{}".format(head_index)):
+            y = shared_trunk_resnet(x, reuse=reuse, dropout=dropout, add_background=add_background)
+            mask = seg_head(x, reuse=reuse, dropout=dropout)
+            score = score_head(x, reuse=reuse, dropout=dropout)
+            masks.append(mask)
+            scores.append(score)
+    return masks, scores
 
 def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, \
                             is_training=True, dropout=1.0, add_background=False, background_diff_w = False):

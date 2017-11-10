@@ -6,6 +6,26 @@ import os
 import sys
 import scipy.ndimage
 
+def iou(mask1, mask2):
+    if np.sum(np.logical_or(mask1, mask2)) == 0:
+        return 10000.0
+    return np.sum(np.logical_and(mask1, mask2)) / np.sum(np.logical_or(mask1, mask2))
+
+def NMS(sorted_masks, nms_tr = 0.4, firstn = 20):
+        result = [sorted_masks[0]] #list of class small_window
+        for new_full_size_msk in sorted_masks[1:]:
+            size_new_msk = np.sum(new_full_size_msk)
+            max_iou = 0
+            for s in result:
+                max_iou = max(max_iou, iou(s, new_full_size_msk))
+            if max_iou < nms_tr and size_new_msk > 600:
+                result.append(new_full_size_msk)
+        if (firstn is not None) and len(result) > firstn:
+            return result[:firstn]
+        else:
+            return result
+
+
 def load_val_separate_msk(img_path = '/media/4tb/dian/validation/Images/users/fred960315/validation', \
                     mask_path = '/media/4tb/dian/validation/Masks/users/fred960315/validation'):
     img_items = sorted([img_path + '/'+ item for item in os.listdir(img_path)])
@@ -52,17 +72,17 @@ def load_val_separate_msk(img_path = '/media/4tb/dian/validation/Images/users/fr
 """
 This function call deepmask and read output from deepmask
 output:
-Score: top20
-Masks: top20 mask corresponding to the score
+Score: top200
+Masks: top200 mask corresponding to the score
 """
 def call_deepmask(image_in):
     imsave("/home/fred/Desktop/bot_mask_tool/deepmask/img.jpg", image_in.astype(np.uint8))
     bashCommand = "cd /home/fred/Desktop/bot_mask_tool/deepmask && export CUDA_VISIBLE_DEVICES=0 && th computeProposals.lua ./pretrained/deepmask/ -img ./img.jpg"
     subprocess.call(['/bin/bash', '-i', '-c', bashCommand])
     #read data output by deepmask
-    score_20 = np.load("/home/fred/Desktop/bot_mask_tool/deepmask/score2npy.npy")
-    masks_20 = np.load("/home/fred/Desktop/bot_mask_tool/deepmask/masks2npy.npy")
-    return score_20, masks_20
+    score_200 = np.load("/home/fred/Desktop/bot_mask_tool/deepmask/score2npy.npy")
+    masks_200 = np.load("/home/fred/Desktop/bot_mask_tool/deepmask/masks2npy.npy")
+    return score_200, masks_200
 
 val_imgs, val_bks, val_msks = load_val_separate_msk()
 """
@@ -72,17 +92,31 @@ Build 12*(40*c*w*h) array
 
 score_thrs = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.99]
 result = []
+score_thr_first_n = 100
+NMS_first_n = 20
+count = 0
+print("len of val_imgs is {}".format(len(val_imgs)))
 for img in val_imgs:
     score_mask = []
-    score_20, masks_20 = call_deepmask(img)
+    score_200, masks_200 = call_deepmask(img)
     for score_thr in score_thrs:
         masks = []
-        for s, m in zip(score_20[:,0], masks_20):
+        for s, m in zip(score_200[:,0], masks_200):
             if s > score_thr:
                 masks.append(m)
+        ###########do NMS Here###########
+        if len(masks) > score_thr_first_n:
+            masks = masks[:score_thr_first_n]
+        masks = NMS(masks, nms_tr = 0.3, firstn = 20)
+        
+        
+        
+        masks = np.array(masks)
         score_mask.append(masks)
     score_mask = np.array(score_mask)
+    print("img {} done, score_mask shape {}".format(count, score_mask.shape))
+    count += 1
     result.append(score_mask)
 
 #save
-np.save("deepmask_result.npy", result)
+np.save("./saveOutputs/deepmask_result_NMS.npy", result)

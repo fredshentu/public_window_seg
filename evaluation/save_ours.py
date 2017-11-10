@@ -5,7 +5,7 @@ import pickle
 from scipy.misc import imresize, imread, imsave
 import os
 import sys
-sys.path.insert(0, os.path.abspath("../window_seg/"))
+sys.path.insert(0, os.path.relpath("../"))
 from inference import *
 from scipy.misc import imresize
 import matplotlib.pyplot as plt
@@ -108,16 +108,16 @@ import glob
 
 
 
-modelGroup2 = [glob.glob("../models/015*184000*.meta")[0][:-5],\
-                glob.glob("../models/016*184000*.meta")[0][:-5],\
-                glob.glob("../models/017*184000*.meta")[0][:-5],\
-                glob.glob("../models/018*199000*.meta")[0][:-5],\
-                ] #bk share weights
+# modelGroup2 = [glob.glob("../models/015*184000*.meta")[0][:-5],\
+#                 glob.glob("../models/016*184000*.meta")[0][:-5],\
+#                 glob.glob("../models/017*184000*.meta")[0][:-5],\
+#                 glob.glob("../models/018*199000*.meta")[0][:-5],\
+#                 ] #bk share weights
 
-for model in modelGroup2:
-    print("Loading model %s"%model)
-    output = eval_wrapper(model, addBg = True, bk_diff_w = False)
-    np.save("./savedOutputs/%s.npy"%model[10:][:3], output)
+# for model in modelGroup2:
+#     print("Loading model %s"%model)
+#     output = eval_wrapper(model, addBg = True, bk_diff_w = False)
+#     np.save("./savedOutputs/%s.npy"%model[10:][:3], output)
 
 # modelGroup3 = [glob.glob("../models/011*199000*.meta")[0][:-5],\
 #                 glob.glob("../models/012*199000*.meta")[0][:-5],\
@@ -129,3 +129,21 @@ for model in modelGroup2:
 #     print("Loading model %s"%model)
 #     output = eval_wrapper(model, addBg = True, bk_diff_w = True)
 #     np.save("./savedOutputs/%s.npy"%model[10:][:3], output)
+
+modelGroup4 = [
+#glob.glob("../models/001*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/002*199000*.meta")[0][:-5],\
+                # glob.glob("../models/003*199000*.meta")[0][:-5],\
+                # glob.glob("../models/004*199000*.meta")[0][:-5],\
+                # glob.glob("../models/005*199000*.meta")[0][:-5],\
+                # glob.glob("../models/006*199000*.meta")[0][:-5],\
+                # glob.glob("../models/007*199000*.meta")[0][:-5],\
+                # glob.glob("../models/008*199000*.meta")[0][:-5],\
+                # glob.glob("../models/009*199000*.meta")[0][:-5],\
+                glob.glob("../models/010*199000*.meta")[0][:-5],\
+                ] #no bk
+
+for model in modelGroup4:
+    print("Loading model %s"%model)
+    output = eval_wrapper(model, addBg = False, bk_diff_w = True)
+    np.save("./savedOutputs/%s.npy"%model[10:][:3], output)

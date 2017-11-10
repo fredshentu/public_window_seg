@@ -52,6 +52,7 @@ def main():
     parser.add_argument('--add_background', action='store_true')
     parser.add_argument('--background_diff_w', action='store_true')
     parser.add_argument('--no_scale_pos_scoring', action='store_true')
+    parser.add_argument('--data_index',type=int, default = 1000)
     
     args = parser.parse_args()
 
@@ -59,6 +60,13 @@ def main():
     train_set_new_names = list([args.train_set_path_new + '/' + l for l in os.listdir(args.train_set_path_new)])
     train_set_new_pos_names = list(filter(lambda s: 'pos' in s, train_set_new_names))
     train_set_new_neg_names = list(filter(lambda s: 'neg' in s, train_set_new_names))
+
+    # import pdb; pdb.set_trace()
+    train_set_new_neg_names.sort(key = lambda a : int(a.split("model")[1].split("_")[0]))
+    train_set_new_pos_names.sort(key = lambda a : int(a.split("model")[1].split("_")[0]))
+    if len(train_set_new_names) > args.data_index:
+        train_set_new_pos_names = train_set_new_pos_names[:args.data_index]
+        train_set_new_neg_names = train_set_new_neg_names[:args.data_index]
 
     val_set_old_names = list([args.val_set_path + '/' + l for l in os.listdir(args.val_set_path)])
 
