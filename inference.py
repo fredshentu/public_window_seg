@@ -266,12 +266,15 @@ class forward_pass():
             # assert(score_h == (scaled_img_hw[0]-half_input_size*2)//self.stride + 1)
             for i in range(score_h):
                 for j in range(score_w):
-                    temp = small_window(scale, score[0,i,j], j, i, msk[j + i*score_w,:,:])
+                    h = 96 + i*16
+                    w = 96 + j*16
+                    canonical_window = scaled_img[h-96:h+96, w-96:w+96,:]
+                    temp = small_window(scale, score[0,i,j], j, i, msk[j + i*score_w,:,:], canonical_window = canonical_window)
                     small_window_list.append(temp)
         #sort small_window_list
         small_window_list.sort()
         self.sorted_small_windows = small_window_list
-        return 
+        return small_window_list
     #top_n mask without nms
     def top_n_masks(self, top_n = 10):
         full_size_msks = []
