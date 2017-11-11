@@ -114,3 +114,4 @@ models
 **pyc
 **npy
 test.jpg
+evaluation/out.txt

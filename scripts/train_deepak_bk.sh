@@ -4,10 +4,11 @@ pos_max=$3
 neg_min=$4
 lr_factor=$5
 mask_ratio=$6
-bk_share_w=$7
-runid=$8
+bk_diff_w=$7
+num_files=$8
+runid=$9
 
-if [ $bk_share_w -eq 1 ]
+if [ $bk_diff_w -eq 1 ]
 then
     echo "unshare_weight code launching .."
     CUDA_VISIBLE_DEVICES=$gpu python train_sawyer.py --mask_ratio $mask_ratio \
@@ -18,6 +19,7 @@ then
     --tfmodel_path /home/fred/window_seg/models \
     --tfboard_path /home/fred/window_seg/boards \
     --no_scale_pos_scoring \
+    --data_index $num_files \
     --runid $runid \
     --add_background \
     --background_diff_w
@@ -31,6 +33,7 @@ else
     --tfmodel_path /home/fred/window_seg/models \
     --tfboard_path /home/fred/window_seg/boards \
     --no_scale_pos_scoring \
+    --data_index $num_files \
     --runid $runid \
     --add_background
 fi

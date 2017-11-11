@@ -4,7 +4,8 @@ pos_max=$3
 neg_min=$4
 lr_factor=$5
 mask_ratio=$6
-runid=$7
+num_files=$7
+runid=$8
 
 CUDA_VISIBLE_DEVICES=$gpu python train_sawyer.py --mask_ratio $mask_ratio \
 --trunk $trunk --pos_max $pos_max --neg_min $neg_min --lr_factor $lr_factor \
@@ -14,4 +15,5 @@ CUDA_VISIBLE_DEVICES=$gpu python train_sawyer.py --mask_ratio $mask_ratio \
 --tfmodel_path /home/fred/window_seg/models \
 --tfboard_path /home/fred/window_seg/boards \
 --no_scale_pos_scoring \
+--data_index $num_files \
 --runid $runid

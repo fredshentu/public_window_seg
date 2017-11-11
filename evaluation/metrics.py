@@ -160,6 +160,6 @@ if __name__ == '__main__':
     print('\nABO: %.2f' % (100*abo))
     print('Covering: %.2f' % (100*cov))
     print('MaxPredProposalPerImage: %d\n' % maxPredProp)
-    print([round(100*i, 2) for i in [ap3, ap5, abo, cov]] + [maxPredProp])
+    print([round(100*i, 2) for i in [ap3, ap5, abo, cov]] + [int(maxPredProp)])
     print('------------------------------------------\n')
     # import IPython; IPython.embed()
