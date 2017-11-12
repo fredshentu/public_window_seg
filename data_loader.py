@@ -145,6 +145,8 @@ def inputs_poking(filenames,
             viz=False,
             addBg = False,
             do_scale_pos_scoring=True,
+            bootstrap = False,
+            num_heads = 5,
     ):
 
     with tf.name_scope('input'):
@@ -182,9 +184,10 @@ def inputs_poking(filenames,
         #     background = tf.image.crop_to_bounding_box(background, 40, 40, \
         #                                                     80 ,80)
         #     background = tf.image.resize_images(background, [160, 160])
-        
-        return image, mask, score, background
-
+        if not bootstrap:
+            return image, mask, score, background
+        else:
+            return image, mask, score, background, np.ones([batch_size, num_heads])
 
 
 #robot negative data sacling only.... no jettering needed
@@ -198,7 +201,12 @@ def read_decode_negative_sawyer_data(filename_queue,\
           features={
                   'img': tf.FixedLenFeature([], tf.string),
                   'background' : tf.FixedLenFeature([], tf.string),
+                  'bootstrap_id':  tf.FixedLenFeature([], tf.string),
           })
+    bootstrap_id = tf.decode_raw(features['bootstrap_id'], tf.uint8)
+    bootstrap_id = tf.reshape(bootstrap_id, [10])
+    
+    
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
@@ -215,13 +223,13 @@ def read_decode_negative_sawyer_data(filename_queue,\
     img = tf.cast(img, tf.uint8)
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
-        background = tf.reshape(background, [160,160,3])
+        background = tf.reshape(background, [240,240,3])
         background = tf.cast(background, tf.float32)
         background = tf.image.resize_images(background, [bgSize, bgSize])
         background = tf.cast(background, tf.uint8)
-        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), background
+        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), background, bootstrap_id
     else:
-        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), tf.cast(2, tf.uint8)
+        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), tf.cast(2, tf.uint8), bootstrap_id
 
 def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
                                     addBg, do_scale=True):
@@ -234,7 +242,10 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
                   'img': tf.FixedLenFeature([], tf.string),
                   'mask':tf.FixedLenFeature([], tf.string),
                   'background': tf.FixedLenFeature([], tf.string),
+                  'bootstrap_id':  tf.FixedLenFeature([], tf.string),
           })
+    bootstrap_id = tf.decode_raw(features['bootstrap_id'], tf.uint8)
+    bootstrap_id = tf.reshape(bootstrap_id, [10])
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
@@ -264,13 +275,13 @@ def read_decode_positive_sawyer_data(filename_queue, pos_shift,\
     mask = tf.cast(mask, tf.uint8)
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
-        background = tf.reshape(background, [160,160,3])
+        background = tf.reshape(background, [240,240,3])
         background = tf.cast(background, tf.float32)
         background = tf.image.resize_images(background, [bgSize, bgSize])
         background = tf.cast(background, tf.uint8)
-        return img, mask, tf.cast(1, tf.uint8), background
+        return img, mask, tf.cast(1, tf.uint8), background, bootstrap_id
     else:
-        return img, mask, tf.cast(1, tf.uint8), tf.cast(2, tf.uint8)
+        return img, mask, tf.cast(1, tf.uint8), tf.cast(2, tf.uint8), bootstrap_id
 
 def read_decode_negative_from_positive_sawyer_data(filename_queue, \
                             neg_shift_min, neg_shift_max, addBg):
@@ -283,7 +294,11 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, \
                   'img': tf.FixedLenFeature([], tf.string),
                   'mask':tf.FixedLenFeature([], tf.string),
                   'background': tf.FixedLenFeature([], tf.string),
+                  'bootstrap_id':  tf.FixedLenFeature([], tf.string),
           })
+    bootstrap_id = tf.decode_raw(features['bootstrap_id'], tf.uint8)
+    bootstrap_id = tf.reshape(bootstrap_id, [10])
+    
     img = tf.decode_raw(features['img'], tf.uint8)
     img = tf.reshape(img, [448,448,3])
     img = tf.cast(img, tf.float32)
@@ -323,27 +338,28 @@ def read_decode_negative_from_positive_sawyer_data(filename_queue, \
     mask = tf.cast(mask, tf.uint8)
     if addBg:
         background = tf.decode_raw(features['background'], tf.uint8)
-        background = tf.reshape(background, [160,160,3])
+        background = tf.reshape(background, [240,240,3])
         background = tf.cast(background, tf.float32)
         background = tf.image.resize_images(background, [bgSize, bgSize])
         background = tf.cast(background, tf.uint8)
-        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), background
+        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), background, bootstrap_id
     else:
-        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), tf.cast(2, tf.uint8)
+        return img, tf.cast(2, tf.uint8), tf.cast(0, tf.uint8), tf.cast(2, tf.uint8), bootstrap_id
 
 def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=True, \
-                        batch_size=12, num_epochs=None, viz=False, addBg = False, do_scale_pos_scoring=True):
+                        batch_size=12, num_epochs=None, viz=False, addBg = False, do_scale_pos_scoring=True,\
+                        bootstrap = False, num_heads = 5):
     assert (mode in set(["positive", "negative", "negative_from_positive"]))
     with tf.name_scope('input'):
         filename_queue = tf.train.string_input_producer(
                 filenames, num_epochs=None,shuffle=True)
         if mode == "positive":
-            image, mask, score, background = read_decode_positive_sawyer_data(filename_queue,pos_max, addBg, do_scale=do_scale_pos_scoring)
+            image, mask, score, background, bootstrap_id = read_decode_positive_sawyer_data(filename_queue,pos_max, addBg, do_scale=do_scale_pos_scoring)
 
         elif mode == "negative":
-            image, mask, score, background = read_decode_negative_sawyer_data(filename_queue,addBg)
+            image, mask, score, background, bootstrap_id = read_decode_negative_sawyer_data(filename_queue,addBg)
         elif mode == "negative_from_positive":
-            image, mask, score, background = read_decode_negative_from_positive_sawyer_data(filename_queue,\
+            image, mask, score, background, bootstrap_id = read_decode_negative_from_positive_sawyer_data(filename_queue,\
                                             neg_min, jetter_max, addBg)
 
         if train:
@@ -352,7 +368,7 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=T
         else:
             num_thread = 4
             queue_capacity = 100 if viz else 5000
-        image, mask, score, background = tf.train.shuffle_batch([image, mask, score, background],
+        image, mask, score, background, bootstrap_id = tf.train.shuffle_batch([image, mask, score, background, bootstrap_id[:num_heads]],
                                 min_after_dequeue=1000 , \
                                 batch_size = batch_size, \
                                 num_threads = num_thread,\
@@ -371,7 +387,9 @@ def inputs_sawyer_data(filenames, mode, pos_max, neg_min, jetter_max=90, train=T
         #     background = tf.image.resize_images(background, [160, 160])
         if mode in set(["negative", "negative_from_positive"]):
             mask = tf.convert_to_tensor(np.zeros([batch_size, maskSize, maskSize]), dtype = tf.int32)
-        return image, mask, score, background
-
+        if not bootstrap:
+            return image, mask, score, background
+        else:
+            return image, mask, score, background, tf.cast(bootstrap_id, tf.float32)
 
 

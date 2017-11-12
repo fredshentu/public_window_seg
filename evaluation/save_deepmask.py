@@ -13,17 +13,20 @@ def iou(mask1, mask2):
 
 def NMS(sorted_masks, nms_tr = 0.4, firstn = 20):
         result = [sorted_masks[0]] #list of class small_window
-        for new_full_size_msk in sorted_masks[1:]:
+        out_index = [0]
+        for i, new_full_size_msk in zip(range(1, len(sorted_masks[1:])),sorted_masks[1:]):
             size_new_msk = np.sum(new_full_size_msk)
             max_iou = 0
             for s in result:
                 max_iou = max(max_iou, iou(s, new_full_size_msk))
             if max_iou < nms_tr and size_new_msk > 600:
                 result.append(new_full_size_msk)
+                out_index.append(i)
+        assert(len(out_index) == len(result))
         if (firstn is not None) and len(result) > firstn:
-            return result[:firstn]
+            return result[:firstn], out_index[:firstn]
         else:
-            return result
+            return result, out_index
 
 
 def load_val_separate_msk(img_path = '/media/4tb/dian/validation/Images/users/fred960315/validation', \
@@ -88,6 +91,12 @@ val_imgs, val_bks, val_msks = load_val_separate_msk()
 """
 Build 12*(40*c*w*h) array
 """
+# tmp = []
+# for msks in val_msks:
+#     msks = np.array(msks).astype(np.uint8)
+#     tmp.append([np.zeros([1, msks.shape[0]]), msks.reshape(msks.shape[0], -1)])
+# np.save("/media/4tb/fred/fred_eval_models_results/ground_truth_msk.npy", tmp)
+# exit()
 
 
 score_thrs = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.99]
@@ -99,24 +108,21 @@ print("len of val_imgs is {}".format(len(val_imgs)))
 for img in val_imgs:
     score_mask = []
     score_200, masks_200 = call_deepmask(img)
-    for score_thr in score_thrs:
-        masks = []
-        for s, m in zip(score_200[:,0], masks_200):
-            if s > score_thr:
-                masks.append(m)
-        ###########do NMS Here###########
-        if len(masks) > score_thr_first_n:
-            masks = masks[:score_thr_first_n]
-        masks = NMS(masks, nms_tr = 0.3, firstn = 20)
-        
-        
-        
-        masks = np.array(masks)
-        score_mask.append(masks)
-    score_mask = np.array(score_mask)
-    print("img {} done, score_mask shape {}".format(count, score_mask.shape))
+    print("called deemask, return {} proposals".format(score_200.shape[0]))
+    score_100 = score_200[:100,0]
+    masks_100 = masks_200[:100]
+    
+    masks, indexs = NMS(masks_100, 0.3, firstn = 100)
+    masks = np.array(masks)
+    masks = np.reshape(masks, [masks.shape[0], -1])
+    scores = score_100[indexs]
+    # import pdb; pdb.set_trace()
+    print("img {} done, masks shape{}".format(count, masks.shape))
     count += 1
-    result.append(score_mask)
-
+    result.append([scores.reshape([1,-1]), masks])
 #save
-np.save("./saveOutputs/deepmask_result_NMS.npy", result)
+# import pickle
+# data_dict = {"data":result}
+# with open("/media/4tb/fred/fred_eval_models_results/deepmask_result_NMS.pkl", "wb") as handle:
+#     pickle.dump(data_dict, handle)
+np.save("/media/4tb/fred/fred_eval_models_results/deepmask_result_NMS.npy", result)

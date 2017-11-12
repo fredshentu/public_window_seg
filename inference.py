@@ -162,24 +162,32 @@ class forward_pass():
 
         self.addBg = addBg
 
-    def msk_cut_score_NMS(self, score_tr = 0.99, nms_tr = 0.4, NMSfirstn = 10, score_firstn = 100):
-        obj_small_windows = []
-        for small_window in reversed(self.sorted_small_windows):
-            obj_small_windows.append(small_window)
-            if small_window.score < score_tr:
-                break
-        if len(obj_small_windows) > score_firstn:
-            obj_small_windows = obj_small_windows[:score_firstn]
-        return self.NMS(obj_small_windows, nms_tr = nms_tr, firstn = NMSfirstn)
     def score_heatmap(self):
         result_score_map = np.zeros_like(self.img_in[:,:,0]).astype(np.float32)
         for small_w in self.sorted_small_windows:
             score, real_x, real_y = small_w.score_map_help()
             result_score_map[real_y-2:real_y+1, real_x-2:real_x+1] = score
         return result_score_map
+    
+    def msk_cut_score_NMS(self, score_tr = 0.99, nms_tr = 0.4, NMSfirstn = 10, score_firstn = 100):
+        obj_small_windows = []
+        score_list = []
+        for small_window in reversed(self.sorted_small_windows):
+            obj_small_windows.append(small_window)
+            score_list.append(small_window.score)
+            if small_window.score < score_tr:
+                break
+        if len(obj_small_windows) > score_firstn:
+            obj_small_windows = obj_small_windows[:score_firstn]
+            score_list = score_list[:score_firstn]
+        score_list = np.array(score_list)
+        NMS_mask, NMS_index =  self.NMS(obj_small_windows, nms_tr = nms_tr, firstn = NMSfirstn)
+        return NMS_mask, score_list[NMS_index]
+
     def NMS(self, sorted_small_windows, nms_tr = 0.4, firstn = None):
         result = [sorted_small_windows[0].generate_full_size_msk(self.img_in)] #list of class small_window
-        for w in sorted_small_windows[1:]:
+        index = [0]
+        for i, w in zip(range(1, len(sorted_small_windows)),sorted_small_windows[1:]):
             new_full_size_msk = w.generate_full_size_msk(self.img_in)
             size_new_msk = np.sum(new_full_size_msk)
             max_iou = 0
@@ -187,10 +195,11 @@ class forward_pass():
                 max_iou = max(max_iou, iou(s, new_full_size_msk))
             if max_iou < nms_tr and size_new_msk > 600:
                 result.append(new_full_size_msk)
+                index.append(i)
         if (firstn is not None) and len(result) > firstn:
-            return result[:firstn]
+            return result[:firstn], index[:firstn]
         else:
-            return result
+            return result, index
     def compute_multi_scale_slicing_window(self, img_in, background = None, msk_thr = 0.6):
         #for fair comparison, stride is 16 as well
         self.img_in = img_in.copy()

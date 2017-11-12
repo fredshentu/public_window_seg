@@ -297,8 +297,8 @@ def build_resnet18_network_bootstrap(img_ph, background=None, sess=None, reuse=F
     for head_index in range(1, num_heads+1):
         with tf.variable_scope("head{}".format(head_index)):
             y = shared_trunk_resnet(x, reuse=reuse, dropout=dropout, add_background=add_background)
-            mask = seg_head(x, reuse=reuse, dropout=dropout)
-            score = score_head(x, reuse=reuse, dropout=dropout)
+            mask = seg_head(y, reuse=reuse, dropout=dropout)
+            score = score_head(y, reuse=reuse, dropout=dropout)
             masks.append(mask)
             scores.append(score)
     return masks, scores
