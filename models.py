@@ -133,6 +133,7 @@ def rebuild_score_head(reuse = False):
         fcob = new_var('fco_bias', [2])
     return [fc1w, fc1b, fcow, fcob]
 
+
 def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False,\
                                 background_ph = None):
     addBg = False
@@ -155,16 +156,6 @@ def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False,\
     """
     With background added, the network can not be fully convolutionary anymore
     """
-    # if background_ph is not None:
-    #     addBg = True
-    #     if not background_diff_w:
-    #         #share weght with the feature net
-    #         background_net_out = feature_net(background_ph, is_training = False, reuse = True)
-    #     else:
-    #         with tf.variable_scope("background_resnet"):
-    #             background_net_out = feature_net(background_ph, is_training = False,\
-    #                                 reuse = False, scope = "background_resnet")
-    
     conv_out, share_trunk_vars = rebuild_shared_trunk(feature_net_out)
     seg_head_vars = rebuild_seg_head()
     score_head_vars = rebuild_score_head()
@@ -209,6 +200,9 @@ def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False,\
         else:
             return sess.run([msk, score], feed_dict = {img_ph:data_in, background_ph: bg_in})
     return model_out, sess
+    
+def rebuild_resent18_bootstrap():
+    pass
 
 def rebuild_original_network(img_ph, model_path, model_type, debug = False, background_ph=None,\
                             background_diff_w = False):
@@ -247,13 +241,13 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False, back
                 return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image]})
             else:
                 return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image], background_ph: [normalized_background]})
+        
         if batch:
             data_in = normalized_image
             bg_in = normalized_background
         else:
             data_in = [normalized_image]
             bg_in = [normalized_background]
-
         if background_ph is None:
             return sess.run([msk, score], feed_dict = {img_ph:data_in})
         else:
@@ -302,6 +296,8 @@ def build_resnet18_network_bootstrap(img_ph, background=None, sess=None, reuse=F
             masks.append(mask)
             scores.append(score)
     return masks, scores
+
+
 
 def build_resnet18_network(img_ph, background=None, sess=None, reuse=False, \
                             is_training=True, dropout=1.0, add_background=False, background_diff_w = False):

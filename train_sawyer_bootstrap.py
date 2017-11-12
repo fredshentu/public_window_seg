@@ -47,7 +47,7 @@ def main():
     parser.add_argument('--tfmodel_path', type=str, default='/home/fred/Desktop/window_seg/models')
     parser.add_argument('--tfboard_path', type=str, default='/home/fred/Desktop/window_seg/boards')
 
-    parser.add_argument('--train_set_path_new', type=str, default='/media/icm_data/sawyer_data_multi',
+    parser.add_argument('--train_set_path_new', type=str, default='/media/icm_data/sawyer_data_mult',
                         help="path of training dataset")
 
     parser.add_argument('--log_freq', type=int, default=50)
@@ -211,7 +211,7 @@ def main():
     
     if args.runid != '':
         args.runid = args.runid + '_'
-    model_name = gen_name('%sbootstrap'%args.runid, args.mask_ratio, args.pos_max, args.neg_min, args.trunk, \
+    model_name = gen_name('%sbootstrap_heads_%d'%(args.runid, args.num_heads), args.mask_ratio, args.pos_max, args.neg_min, args.trunk, \
                     args.weight_decay, args.lr_factor, args.add_background,args.background_diff_w, \
                     args.no_scale_pos_scoring)
 
@@ -263,7 +263,7 @@ def main():
                     train_opt,
                     loss_summ_op,
                 ], {
-                    learning_rate : get_lr(timestep, args.lr_factor)
+                    learning_rate : get_lr(timestep, args.lr_factor/(args.num_heads*1.0))
                 }
             )
 

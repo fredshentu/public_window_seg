@@ -155,7 +155,9 @@ def main():
         _, train_pred_score = build_resnet18_network(train_scoring_img, background=train_scoring_background,\
                 sess=sess, reuse=False, is_training=True, dropout=0.5, add_background=args.add_background, \
                 background_diff_w = args.background_diff_w)
-        train_pred_mask, _  = build_resnet18_network
+        train_pred_mask, _  = build_resnet18_network(train_segment_img, background=train_segment_background,\
+                sess=sess, reuse=True, is_training=True, dropout=0.5, add_background=args.add_background, \
+                background_diff_w = args.background_diff_w)
         sess.run(tf.initialize_all_variables()) # Initialize ResNet params
 
     if args.pretrain_path:
