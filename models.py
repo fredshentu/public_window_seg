@@ -220,7 +220,7 @@ def rebuild_resent18_bootstrap(img_ph, model_path, debug = False, background_ph=
         scores.append(tf.nn.softmax(model_out_score))
         
     def model_out(image, background=None, batch = False):
-        outputs = zip(masks, scores)
+        outputs = list(zip(masks, scores))
         normalized_image = image/255.0 - 0.5
         if add_background:
             normalized_background = background/255.0 - 0.5
@@ -321,7 +321,8 @@ def build_resnet18_network_bootstrap(img_ph, background=None, sess=None, reuse=F
     assert(not (add_background and fully_conv))
     x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
     # import pdb; pdb.set_trace()
-    x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
+    x =  x[:,1:,1:,:]
+    x = x[:,:-1,:-1,:]
     if add_background:
         if not background_diff_w:
             y = resnet_18_network(background, reuse=True, is_training=is_training)
@@ -350,7 +351,7 @@ def build_resnet18_network_bootstrap(img_ph, background=None, sess=None, reuse=F
             seg_head_vars_list = []
             score_head_vars_list = []
             with tf.variable_scope("head{}".format(head_index)):
-                conv_out, share_trunk_vars = rebuild_shared_trunk(feature_net_out)
+                conv_out, share_trunk_vars = rebuild_shared_trunk_resnet(x)
                 seg_head_vars = rebuild_seg_head()
                 score_head_vars = rebuild_score_head()
                 conv_out_list.append(conv_out)

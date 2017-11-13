@@ -11,7 +11,8 @@ import numpy as np
 import pickle
 import os
 from scipy.misc import imresize
-from models import rebuild_network_full_conv, build_resnet50_network,rebuild_original_network
+from models import rebuild_network_full_conv, build_resnet50_network,\
+                    rebuild_original_network, rebuild_resent18_bootstrap
 from scipy.misc import imresize
     
 
@@ -104,12 +105,20 @@ class small_window():
         self.pos_y = pos_y #index, not real position
         self.mask = mask #thresholded binary msk
         self.stride = stride
+        #set variance for bootstrapping
+        self.variance = None
+        
     def __gt__(self, small_window2):
         return self.score > small_window2.score
+        
+    def set_variance(self, variance):
+        self.variance = variance
+        
     def score_map_help(self):
         real_x = int(half_input_size/self.scale + self.pos_x*self.stride/self.scale)
         real_y = int(half_input_size/self.scale + self.pos_y*self.stride/self.scale)
         return self.score, real_x, real_y
+        
     def generate_full_size_msk(self, origin_img, highlight_bond = False):
         img_shape = np.array(origin_img.shape[:2])
         result = np.zeros(img_shape + [200,200])
@@ -304,7 +313,8 @@ class forward_pass():
         return
 
 class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
-    def __init__(self, model_path, stride = 16, debug = False, addBg=False, background_diff_w = False, num_heads = 5):
+    def __init__(self, model_path, stride = 16, debug = False, addBg=False,\
+                    background_diff_w = False, num_heads = 5):
         assert (debug is False)
         self.scales = [2**(i*0.25 - 1.25) for i in range(7)]
         self.debug = debug
@@ -315,7 +325,7 @@ class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
         if not addBg:
             img_ph = tf.placeholder(tf.float32, [None, None, None, 3])
             self.model_out, self.sess = rebuild_resent18_bootstrap(img_ph, model_path,\
-                                background=bg_ph, model_path = model_path, background_diff_w = background_diff_w,\
+                                background_ph=bg_ph, background_diff_w = background_diff_w,\
                                 num_heads = num_heads)
         else:
             img_ph = tf.placeholder(tf.float32, [None, 192, 192, 3])
@@ -326,12 +336,13 @@ class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
         # print(score)
         
         #no need to filt score in same position, NMS will filter those masks
-        self.sorted_small_windows = [[] for  i in range(num_heads)]
+        self.sorted_small_windows = None
+        self.sorted_small_windows_list = None
         self.img_in = None
         self.stride = stride
-
+        self.num_heads = num_heads
         self.addBg = addBg
-
+    
     def compute_multi_scale_slicing_window(self, img_in, background = None, msk_thr = 0.6):
         raise NotImplementedError
     
@@ -340,32 +351,73 @@ class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
             print("debug model, only support caonoical slicing window model")
             raise NotImplementedError
         self.img_in = img_in.copy()
-        small_window_list = []
+        small_window_list = [[] for i in range(self.num_heads)]
         for scale in self.scales:
             # print("scale {}".format(scale))
             scaled_img = imresize(img_in, [int(img_in.shape[0]*scale),int(img_in.shape[1]*scale)])
             scaled_img_hw = scaled_img.shape[:2]
-            msk, score = self.model_out(scaled_img, background)
-            
-            msk = msk[:,:,:,1] #prob of 1
-            msk = (msk > msk_thr).astype(np.uint8)#msk cut score threshold
-            score = score[:,:,:,1] #score
-            score_h, score_w = score.shape[1:3]
-            # import pdb; pdb.set_trace()
-            # assert(score_w == (scaled_img_hw[1]-half_input_size*2)//self.stride + 1)
-            # assert(score_h == (scaled_img_hw[0]-half_input_size*2)//self.stride + 1)
-            for i in range(score_h):
-                for j in range(score_w):
-                    h = 96 + i*16
-                    w = 96 + j*16
-                    canonical_window = scaled_img[h-96:h+96, w-96:w+96,:]
-                    temp = small_window(scale, score[0,i,j], j, i, msk[j + i*score_w,:,:], canonical_window = canonical_window)
-                    small_window_list.append(temp)
+            msks_scores = self.model_out(scaled_img, background)
+            count = 0
+            for msk, score in msks_scores:
+                msk = msk[:,:,:,1] #prob of 1
+                msk = (msk > msk_thr).astype(np.uint8)#msk cut score threshold
+                score = score[:,:,:,1] #score
+                score_h, score_w = score.shape[1:3]
+                # import pdb; pdb.set_trace()
+                # assert(score_w == (scaled_img_hw[1]-half_input_size*2)//self.stride + 1)
+                # assert(score_h == (scaled_img_hw[0]-half_input_size*2)//self.stride + 1)
+                for i in range(score_h):
+                    for j in range(score_w):
+                        h = 96 + i*16
+                        w = 96 + j*16
+                        canonical_window = scaled_img[h-96:h+96, w-96:w+96,:]
+                        if not (canonical_window.shape[0] == 192 and canonical_window.shape[1] == 192):
+                            continue
+                        assert(canonical_window.shape[0] == 192 and canonical_window.shape[1] == 192)
+                        temp = small_window(scale, score[0,i,j], j, i, msk[j + i*score_w,:,:], canonical_window = canonical_window)
+                        small_window_list[count].append(temp)
+                count += 1
+        #compute the variance
+        num_slicing_window = len(small_window_list[0])
+        for i in range(num_slicing_window):
+            scores = []
+            for j in range(self.num_heads):
+                scores.append(small_window_list[j][i].score)
+            var = np.var(np.array(scores))
+            for j in range(self.num_heads):
+                small_window_list[j][i].set_variance(var)
+        
         #sort small_window_list
-        small_window_list.sort()
-        self.sorted_small_windows = small_window_list
+        for i in range(self.num_heads):
+            small_window_list[i].sort()
+        self.sorted_small_windows_list = small_window_list
         return small_window_list
-    
+        
+    def topn_var(self, topn = 5):
+        top_var = self.sorted_small_windows_list.copy()
+        for i in range(self.num_heads):
+            top_var[i].sort(key = lambda a: a.variance)
+        top_var = np.array(top_var)
+        return top_var[:,-topn:].T
+        
+    def score_heatmap_single_head(self, head_index):
+        assert(head_index >= 0 and head_index < self.num_heads)
+        self.sorted_small_windows = self.sorted_small_windows_list[head_index]
+        return self.score_heatmap()
+    def score_variance_map(self):
+        score_heatmaps = []
+        for i in range(self.num_heads):
+            score_heatmaps.append(self.score_heatmap_single_head(i))
+        score_heatmaps = np.array(score_heatmaps)
+        # import pdb; pdb.set_trace()
+        result_score_variance_map = np.var(score_heatmaps, axis = 0)
+        return result_score_variance_map/(np.max(result_score_variance_map))
+    def msk_cut_score_NMS_head(self, head_index, score_tr = 0.99, nms_tr = 0.4, NMSfirstn = 10,\
+                                score_firstn = 100):
+        self.sorted_small_windows = self.sorted_small_windows_list[head_index]
+        return self.msk_cut_score_NMS(score_tr = score_tr, nms_tr = nms_tr, \
+                                NMSfirstn = NMSfirstn, score_firstn = score_firstn)
+                                    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
