@@ -11,6 +11,7 @@ from scipy.misc import imresize
 import matplotlib.pyplot as plt
 import subprocess
 
+
 def load_val_separate_msk(img_path = '/media/4tb/dian/validation/Images/users/fred960315/validation', \
                     mask_path = '/media/4tb/dian/validation/Masks/users/fred960315/validation'):
     img_items = sorted([img_path + '/'+ item for item in os.listdir(img_path)])
@@ -58,8 +59,8 @@ def load_val_separate_msk(img_path = '/media/4tb/dian/validation/Images/users/fr
 val_imgs, val_bks, val_masks = load_val_separate_msk()
 # import pdb; pdb.set_trace()
 # np.save("ground_truth_msk", val_masks)
-score_thrs = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.99]
-def eval_wrapper(model_name, nms_thr=0.3, addBg = False,\
+# score_thrs = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,0.99]
+def eval_wrapper(model_name, msk_thr, nms_thr=0.3, addBg = False,\
                                      bk_diff_w = False, model_type = "resnet18"):
     fw_pass = forward_pass(model_name, model_type, addBg = addBg, background_diff_w = bk_diff_w,debug = False)
     output = []
@@ -70,10 +71,10 @@ def eval_wrapper(model_name, nms_thr=0.3, addBg = False,\
         img_in = np.lib.pad(img, ([100,100],[100,100],[0,0]), 'constant', constant_values=127)
         if not addBg:
 #             print("fully conv")
-            slice_windows_increase_order = fw_pass.compute_multiscale_masks(img_in, msk_thr = 0.6)
+            slice_windows_increase_order = fw_pass.compute_multiscale_masks(img_in, msk_thr = msk_thr)
         else:
 #             print("stupid slicing window")
-            slice_windows_increase_order = fw_pass.compute_multi_scale_slicing_window(img_in, msk_thr = 0.6,\
+            slice_windows_increase_order = fw_pass.compute_multi_scale_slicing_window(img_in, msk_thr = msk_thr,\
                                                                                         background = background)
         # for score_thr in score_thrs:
         #     print("Evaluating score threshold {}".format(score_thr))
@@ -111,8 +112,8 @@ import glob
 
 # for model in modelGroup1:
 #     print("Loading model %s"%model)
-#     output = eval_wrapper(model, addBg = False, bk_diff_w = True)
-#     np.save("/media/4tb/fred/fred_eval_models_results/%s.npy"%model[10:][:3], output)
+#     output = eval_wrapper(model, 0.6, addBg = False, bk_diff_w = True)
+#     np.save("/media/4tb/fred/fred_eval_models_results/%s_msk_thr%02f.npy"%(model[10:][:3], MSK_THR), output)
 
 
 
@@ -124,8 +125,8 @@ import glob
 
 # for model in modelGroup2:
 #     print("Loading model %s"%model)
-#     output = eval_wrapper(model, addBg = True, bk_diff_w = False)
-#     np.save("/media/4tb/fred/fred_eval_models_results/%s.npy"%model[10:][:3], output)
+#     output = eval_wrapper(model, 0.6, addBg = True, bk_diff_w = False)
+#     np.save("/media/4tb/fred/fred_eval_models_results/%s_msk_thr%.npy"%(model[10:][:3], MSK_THR), output)
 
 # modelGroup3 = [glob.glob("../models/011*199000*.meta")[0][:-5],\
 #                 glob.glob("../models/012*199000*.meta")[0][:-5],\
@@ -135,23 +136,76 @@ import glob
 
 # for model in modelGroup3:
 #     print("Loading model %s"%model)
-#     output = eval_wrapper(model, addBg = True, bk_diff_w = True)
-#     np.save("/media/4tb/fred/fred_eval_models_results/%s.npy"%model[10:][:3], output)
+#     output = eval_wrapper(model, 0.6, addBg = True, bk_diff_w = True)
+#     np.save("/media/4tb/fred/fred_eval_models_results/%s_msk_thr%.npy"%(model[10:][:3], MSK_THR), output)
 
-modelGroup4 = [
-glob.glob("../models/001*199000*.meta")[0][:-5],\
-                glob.glob("../models/002*199000*.meta")[0][:-5],\
-                glob.glob("../models/003*199000*.meta")[0][:-5],\
-                glob.glob("../models/004*199000*.meta")[0][:-5],\
-                glob.glob("../models/005*199000*.meta")[0][:-5],\
-                glob.glob("../models/006*199000*.meta")[0][:-5],\
-                glob.glob("../models/007*199000*.meta")[0][:-5],\
-                glob.glob("../models/008*199000*.meta")[0][:-5],\
-                glob.glob("../models/009*199000*.meta")[0][:-5],\
-                glob.glob("../models/010*199000*.meta")[0][:-5],\
-                ] #no bk
+# modelGroup4 = [
+# glob.glob("../models/001*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/002*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/003*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/004*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/005*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/006*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/007*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/008*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/009*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/010*199000*.meta")[0][:-5],\
+#                 ] #no bk
 
-for model in modelGroup4:
+# for model in modelGroup4:
+#     print("Loading model %s"%model)
+#     output = eval_wrapper(model, 0.6, addBg = False, bk_diff_w = True)
+#     np.save("/media/4tb/fred/fred_eval_models_results/%s_msk_thr%02f.npy"%(model[10:][:3], MSK_THR), output)
+
+"""
+Models below are trained with all new data
+"""
+
+
+   
+# modelGroup5 = [glob.glob("../models/024*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/025*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/026*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/027*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/028*199000*.meta")[0][:-5],\
+#                 ] #no bk
+
+# modelGroup5 = [glob.glob("../models/029*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/030*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/031*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/032*199000*.meta")[0][:-5],\
+#                 glob.glob("../models/041*199000*.meta")[0][:-5],\
+#                 ]
+                
+# for mask_th in [0.5,0.6,0.7]:
+#     for model in modelGroup5:
+#         print("Loading model %s"%model)
+#         output = eval_wrapper(model, mask_th, addBg = False, bk_diff_w = True)
+#         np.save("/media/4tb/fred/fred_eval_models_results/%s_msk_thr%02f.npy"%(model[10:][:3], mask_th), output)
+
+#############################################################
+
+modelGroup6 = [glob.glob("../models/033*199000*.meta")[0][:-5],\
+                glob.glob("../models/034*199000*.meta")[0][:-5],\
+                glob.glob("../models/035*199000*.meta")[0][:-5],\
+                glob.glob("../models/036*199000*.meta")[0][:-5],\
+                ] #bk shared w
+mask_th = 0.5
+for model in modelGroup6:
     print("Loading model %s"%model)
-    output = eval_wrapper(model, addBg = False, bk_diff_w = True)
-    np.save("/media/4tb/fred/fred_eval_models_results/%s.npy"%model[10:][:3], output)
+    output = eval_wrapper(model, mask_th, addBg = True, bk_diff_w = False)
+    np.save("/media/4tb/fred/fred_eval_models_results/%s_msk_thr%02f.npy"%(model[10:][:3], mask_th), output)
+
+##############################################################
+
+modelGroup7 = [glob.glob("../models/037*199000*.meta")[0][:-5],\
+                glob.glob("../models/038*199000*.meta")[0][:-5],\
+                glob.glob("../models/039*199000*.meta")[0][:-5],\
+                glob.glob("../models/040*199000*.meta")[0][:-5],\
+                ] #bk unshared w
+
+mask_th = 0.5
+for model in modelGroup7:
+    print("Loading model %s"%model)
+    output = eval_wrapper(model, mask_th, addBg = True, bk_diff_w = True)
+    np.save("/media/4tb/fred/fred_eval_models_results/%s_msk_thr%02f.npy"%(model[10:][:3], mask_th), output)

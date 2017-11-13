@@ -201,8 +201,50 @@ def rebuild_network_full_conv(img_ph, model_path, model_type, debug = False,\
             return sess.run([msk, score], feed_dict = {img_ph:data_in, background_ph: bg_in})
     return model_out, sess
     
-def rebuild_resent18_bootstrap():
-    pass
+def rebuild_resent18_bootstrap(img_ph, model_path, debug = False, background_ph=None,\
+                            background_diff_w = False, num_heads = 5):
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
+    
+    add_background = background_ph is not None
+    #can not convolize the whole model with bk added
+    model_out_masks, model_out_scores = build_resnet18_network_bootstrap(img_ph, background=background_ph, sess = sess,\
+                    is_training = False, add_background=add_background,\
+                    background_diff_w = background_diff_w, num_heads = num_heads,\
+                    model_path = model_path, fully_conv = not add_background)
+    masks = []
+    scores = []
+    for model_out_mask, model_out_score in zip(model_out_masks, model_out_scores):
+        masks.append(tf.nn.softmax(model_out_mask))
+        scores.append(tf.nn.softmax(model_out_score))
+        
+    def model_out(image, background=None, batch = False):
+        outputs = zip(masks, scores)
+        normalized_image = image/255.0 - 0.5
+        if add_background:
+            normalized_background = background/255.0 - 0.5
+        else:
+            normalized_background = None
+        if debug:
+            if background_ph is None:
+                return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image]})
+            else:
+                return sess.run([seg_out, score_out, conv_out, feature_net_out], feed_dict = {img_ph:[normalized_image], background_ph: [normalized_background]})
+        
+        if batch:
+            data_in = normalized_image
+            bg_in = normalized_background
+        else:
+            data_in = [normalized_image]
+            bg_in = [normalized_background]
+        if background_ph is None:
+            return sess.run(outputs, feed_dict = {img_ph:data_in})
+        else:
+            return sess.run(outputs, feed_dict = {img_ph:data_in, background_ph: bg_in})
+    return model_out, sess
+        
+        
 
 def rebuild_original_network(img_ph, model_path, model_type, debug = False, background_ph=None,\
                             background_diff_w = False):
@@ -254,7 +296,8 @@ def rebuild_original_network(img_ph, model_path, model_type, debug = False, back
             return sess.run([msk, score], feed_dict = {img_ph:data_in, background_ph: bg_in})
     return model_out, sess
 
-def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_training=True, dropout=1.0, add_background=False):
+def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_training=True, \
+                            dropout=1.0, add_background=False):
     x = resnet_50_network(img_ph, reuse=reuse, is_training=is_training)
     x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
     if add_background:
@@ -271,9 +314,11 @@ def build_resnet50_network(img_ph, background=None, sess=None, reuse=False, is_t
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
     return mask, score
 
+    
 def build_resnet18_network_bootstrap(img_ph, background=None, sess=None, reuse=False, \
                             is_training=True, dropout=1.0, add_background=False, \
-                            background_diff_w = False, num_heads = 5):
+                            background_diff_w = False, num_heads = 5, fully_conv = False, model_path = None):
+    assert(not (add_background and fully_conv))
     x = resnet_18_network(img_ph, reuse=reuse, is_training=is_training)
     # import pdb; pdb.set_trace()
     x = tf.image.crop_to_bounding_box(x, 1, 1, 10, 10)
@@ -289,12 +334,48 @@ def build_resnet18_network_bootstrap(img_ph, background=None, sess=None, reuse=F
     masks = []
     scores = []
     for head_index in range(1, num_heads+1):
-        with tf.variable_scope("head{}".format(head_index)):
-            y = shared_trunk_resnet(x, reuse=reuse, dropout=dropout, add_background=add_background)
-            mask = seg_head(y, reuse=reuse, dropout=dropout)
-            score = score_head(y, reuse=reuse, dropout=dropout)
-            masks.append(mask)
-            scores.append(score)
+        if not fully_conv:
+            with tf.variable_scope("head{}".format(head_index)):
+                y = shared_trunk_resnet(x, reuse=reuse, dropout=dropout, add_background=add_background)
+                mask = seg_head(y, reuse=reuse, dropout=dropout)
+                score = score_head(y, reuse=reuse, dropout=dropout)
+                masks.append(mask)
+                scores.append(score)
+        else:
+            # print("this function should only be used to build graph during training.")
+            # raise NotImplementedError
+            print("convolizing all parameters")
+            conv_out_list = []
+            share_trunk_vars_list = []
+            seg_head_vars_list = []
+            score_head_vars_list = []
+            with tf.variable_scope("head{}".format(head_index)):
+                conv_out, share_trunk_vars = rebuild_shared_trunk(feature_net_out)
+                seg_head_vars = rebuild_seg_head()
+                score_head_vars = rebuild_score_head()
+                conv_out_list.append(conv_out)
+                share_trunk_vars_list.append(share_trunk_vars)
+                seg_head_vars_list.append(seg_head_vars)
+                score_head_vars_list.append(score_head_vars)
+            #then load the model
+            model_saver = tf.train.Saver()
+            model_saver.restore(sess, model_path)
+            
+            for conv_out, share_trunk_vars, seg_head_vars, score_head_vars in zip(\
+                        conv_out_list, share_trunk_vars_list, seg_head_vars_list,\
+                        score_head_vars_list):
+                #make the model fully convolutionary
+                conv_out = Fc2Conv(conv_out, *share_trunk_vars)
+            
+                seg_out = Fc2Conv(conv_out, *seg_head_vars)#out is 1x1x6272
+                seg_out = tf.reshape(seg_out, [-1,56,56,2])
+                seg_out = tf.image.resize_images(seg_out, [112,112])
+                score_out = Fc2Conv(conv_out, *score_head_vars[:2])
+                score_out = tf.nn.relu(score_out)
+                score_out = Fc2Conv(score_out, *score_head_vars[2:]) #1*1*1
+                #seg and score are all log probabilities, need to be convert to score outside
+                masks.append(seg_out)
+                scores.append(score_out)
     return masks, scores
 
 

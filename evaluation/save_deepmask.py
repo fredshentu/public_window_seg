@@ -80,7 +80,7 @@ Masks: top200 mask corresponding to the score
 """
 def call_deepmask(image_in):
     imsave("/home/fred/Desktop/bot_mask_tool/deepmask/img.jpg", image_in.astype(np.uint8))
-    bashCommand = "cd /home/fred/Desktop/bot_mask_tool/deepmask && export CUDA_VISIBLE_DEVICES=0 && th computeProposals.lua ./pretrained/deepmask/ -img ./img.jpg"
+    bashCommand = "cd /home/fred/Desktop/bot_mask_tool/deepmask && export CUDA_VISIBLE_DEVICES=1 && th computeProposals.lua ./pretrained/deepmask/ -img ./img.jpg"
     subprocess.call(['/bin/bash', '-i', '-c', bashCommand])
     #read data output by deepmask
     score_200 = np.load("/home/fred/Desktop/bot_mask_tool/deepmask/score2npy.npy")
@@ -111,18 +111,22 @@ for img in val_imgs:
     print("called deemask, return {} proposals".format(score_200.shape[0]))
     score_100 = score_200[:100,0]
     masks_100 = masks_200[:100]
-    
-    masks, indexs = NMS(masks_100, 0.3, firstn = 100)
-    masks = np.array(masks)
-    masks = np.reshape(masks, [masks.shape[0], -1])
-    scores = score_100[indexs]
+    #######with NMS#############
+    # masks, indexs = NMS(masks_100, 0.3, firstn = 100)
+    # masks = np.array(masks)
+    # masks = np.reshape(masks, [masks.shape[0], -1])
+    # scores = score_100[indexs]
     # import pdb; pdb.set_trace()
-    print("img {} done, masks shape{}".format(count, masks.shape))
+    # print("img {} done, masks shape{}".format(count, masks.shape))
     count += 1
-    result.append([scores.reshape([1,-1]), masks])
+    ########without NMS#############
+    print("img {} done, masks shape{}".format(count, masks_100.shape))
+    result.append([score_100.reshape([1,-1]), np.reshape(masks_100, [masks_100.shape[0], -1])])
+    ###############################
+    # result.append([scores.reshape([1,-1]), masks])
 #save
 # import pickle
 # data_dict = {"data":result}
 # with open("/media/4tb/fred/fred_eval_models_results/deepmask_result_NMS.pkl", "wb") as handle:
 #     pickle.dump(data_dict, handle)
-np.save("/media/4tb/fred/fred_eval_models_results/deepmask_result_NMS.npy", result)
+np.save("/media/4tb/fred/fred_eval_models_results/deepmask_result_without_NMS.npy", result)

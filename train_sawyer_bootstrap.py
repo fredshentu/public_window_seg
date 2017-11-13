@@ -54,9 +54,9 @@ def main():
     parser.add_argument('--save_freq', type=int, default=1000)
     parser.add_argument('--gpu_ratio', type=float, default=0.99)
     parser.add_argument('--lr_factor', type=float, default=1)
-    parser.add_argument('--mask_ratio', type=float, default=24.0)
-    parser.add_argument('--pos_max', type=float, default=22.0)
-    parser.add_argument('--neg_min', type=float, default=66.0)
+    parser.add_argument('--mask_ratio', type=float, default=32.0)
+    parser.add_argument('--pos_max', type=float, default=24.0)
+    parser.add_argument('--neg_min', type=float, default=64.0)
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--num_itr', type=int, default=200000)
     parser.add_argument('--num_heads', type = int, default = 5)
@@ -173,8 +173,28 @@ def main():
                 sess=sess, reuse=True, is_training=True, dropout=0.5, add_background=args.add_background, \
                 background_diff_w = args.background_diff_w, num_heads = args.num_heads)
     sess.run(tf.initialize_all_variables())
-    
+    resnet18_var = tf.trainable_variables(scope='resnet_v1_18')
+    background_resnet = tf.trainable_variables(scope='background_resnet')
+    all_trainable =  set(tf.trainable_variables())
+    bootstrap_share_var = set(resnet18_var + background_resnet)
     tmp_vars = set(tf.all_variables()) # Trunk variables
+    unshared_var = all_trainable - bootstrap_share_var
+    # unshared_weight_lr_factor = 5.0 * np.ones(len(unshared_var))
+    # trainable_variables = list(bootstrap_share_var) + list(unshared_var)
+    # shared_vars_names = [var.op.name for var in bootstrap_share_var if "Batch" not in var.op.name]
+    # ddebug = [var.op.name for var in bootstrap_share_var]
+    # shared_weight_lr_factor = np.ones(len(shared_vars_names))/(1.0*args.num_heads)
+    score_branches_unshared = [var.op.name for var in unshared_var if "segmentation_head" not in var.op.name]
+    seg_branches_unshared = [var.op.name for var in unshared_var if "score_head" not in var.op.name]
+    # import pdb; pdb.set_trace()
+    # assert(len(seg_branches_unshared) + len(score_branches_unshared) == len(unshared_var))
+    
+    score_variables_lr_factor_dict = dict(zip(score_branches_unshared, \
+                            np.ones(len(score_branches_unshared))*(args.num_heads)))
+    seg_variables_lr_factor_dict = dict(zip(seg_branches_unshared, \
+                            np.ones(len(seg_branches_unshared))*(args.num_heads)))
+    
+    
     train_mask_losses = []
     train_label_losses = []
     train_label_acc = 0
@@ -193,10 +213,12 @@ def main():
                             tf.argmax(tf.nn.softmax(train_pred_score, dim=-1), 1)), \
                             tf.float32)* train_score_heads_indicator[:,i])/tf.reduce_sum(train_score_heads_indicator[:,i])
     train_label_acc /= args.num_heads
+    
+    train_valid_batch_sizes = tf.reduce_sum(tf.transpose(train_segment_heads_indicator), 1)
     #train_mask_losses: batchN * num_heads
-    train_mask_losses = tf.reduce_mean(tf.convert_to_tensor(train_mask_losses)*tf.transpose(train_segment_heads_indicator))
+    train_mask_losses = tf.reduce_mean(tf.reduce_sum(tf.convert_to_tensor(train_mask_losses)*tf.transpose(train_segment_heads_indicator), 1) / train_valid_batch_sizes)
     #train_mask_labele: batchN * num_heads
-    train_label_losses =tf.reduce_mean(tf.convert_to_tensor(train_label_losses)*tf.transpose(train_segment_heads_indicator))
+    train_label_losses = tf.reduce_mean(tf.reduce_sum(tf.convert_to_tensor(train_label_losses)*tf.transpose(train_segment_heads_indicator), 1) / train_valid_batch_sizes)
     
     decay_loss = tf.reduce_mean(tf.stack([tf.nn.l2_loss(i) for i in tf.all_variables() if 'weights' in i.name]))
     train_total_loss = train_mask_losses * args.mask_ratio + train_label_losses +\
@@ -204,9 +226,11 @@ def main():
     
     mask_optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
     score_optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
-    train_mask_opt = slim.learning.create_train_op(train_mask_losses*args.mask_ratio + args.weight_decay * decay_loss, mask_optimizer, clip_gradient_norm=40.0)
-    train_score_opt = slim.learning.create_train_op(train_label_losses + args.weight_decay * decay_loss, score_optimizer, clip_gradient_norm=40.0)
-
+    train_mask_opt = slim.learning.create_train_op(train_mask_losses*args.mask_ratio + args.weight_decay * decay_loss, \
+                                                mask_optimizer, clip_gradient_norm=40.0, gradient_multipliers = seg_variables_lr_factor_dict)
+    train_score_opt = slim.learning.create_train_op(train_label_losses + args.weight_decay * decay_loss, score_optimizer, \
+                                                clip_gradient_norm=40.0, gradient_multipliers = score_variables_lr_factor_dict)
+    # import pdb; pdb.set_trace()
     sess.run(tf.initialize_variables(set(tf.all_variables()) - tmp_vars))
     
     if args.runid != '':

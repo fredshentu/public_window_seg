@@ -131,6 +131,7 @@ class small_window():
 
 def cut_img(img, center_x, center_y, half_size):
     return img[center_y-half_size:center_y+half_size, center_x-half_size:center_x + half_size,:]
+    
 
 class forward_pass():
     def __init__(self, model_path, model_type, stride = 16, debug = False, addBg=False, background_diff_w = False):
@@ -301,6 +302,71 @@ class forward_pass():
         self.sorted_small_windows = None
         self.img_in = None
         return
+
+class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
+    def __init__(self, model_path, stride = 16, debug = False, addBg=False, background_diff_w = False, num_heads = 5):
+        assert (debug is False)
+        self.scales = [2**(i*0.25 - 1.25) for i in range(7)]
+        self.debug = debug
+        if addBg:
+            bg_ph = tf.placeholder(tf.float32, [None, 160, 160, 3])
+        else:
+            bg_ph = None
+        if not addBg:
+            img_ph = tf.placeholder(tf.float32, [None, None, None, 3])
+            self.model_out, self.sess = rebuild_resent18_bootstrap(img_ph, model_path,\
+                                background=bg_ph, model_path = model_path, background_diff_w = background_diff_w,\
+                                num_heads = num_heads)
+        else:
+            img_ph = tf.placeholder(tf.float32, [None, 192, 192, 3])
+            self.model_out, self.sess = rebuild_resent18_bootstrap(img_ph, model_path,\
+                                background=bg_ph, model_path = model_path, background_diff_w = background_diff_w, num_heads = num_heads)
+        # msk, score = self.model_out(np.zeros([224,224,3]))
+        # print(msk)
+        # print(score)
+        
+        #no need to filt score in same position, NMS will filter those masks
+        self.sorted_small_windows = [[] for  i in range(num_heads)]
+        self.img_in = None
+        self.stride = stride
+
+        self.addBg = addBg
+
+    def compute_multi_scale_slicing_window(self, img_in, background = None, msk_thr = 0.6):
+        raise NotImplementedError
+    
+    def compute_multiscale_masks(self, img_in, background = None, msk_thr = 0.6):
+        if self.debug:
+            print("debug model, only support caonoical slicing window model")
+            raise NotImplementedError
+        self.img_in = img_in.copy()
+        small_window_list = []
+        for scale in self.scales:
+            # print("scale {}".format(scale))
+            scaled_img = imresize(img_in, [int(img_in.shape[0]*scale),int(img_in.shape[1]*scale)])
+            scaled_img_hw = scaled_img.shape[:2]
+            msk, score = self.model_out(scaled_img, background)
+            
+            msk = msk[:,:,:,1] #prob of 1
+            msk = (msk > msk_thr).astype(np.uint8)#msk cut score threshold
+            score = score[:,:,:,1] #score
+            score_h, score_w = score.shape[1:3]
+            # import pdb; pdb.set_trace()
+            # assert(score_w == (scaled_img_hw[1]-half_input_size*2)//self.stride + 1)
+            # assert(score_h == (scaled_img_hw[0]-half_input_size*2)//self.stride + 1)
+            for i in range(score_h):
+                for j in range(score_w):
+                    h = 96 + i*16
+                    w = 96 + j*16
+                    canonical_window = scaled_img[h-96:h+96, w-96:w+96,:]
+                    temp = small_window(scale, score[0,i,j], j, i, msk[j + i*score_w,:,:], canonical_window = canonical_window)
+                    small_window_list.append(temp)
+        #sort small_window_list
+        small_window_list.sort()
+        self.sorted_small_windows = small_window_list
+        return small_window_list
+    
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('model_path', type=str)
