@@ -107,10 +107,13 @@ class small_window():
         self.stride = stride
         #set variance for bootstrapping
         self.variance = None
-        
+        self.weighted_variance = None
     def __gt__(self, small_window2):
         return self.score > small_window2.score
-        
+    
+    def set_weighted_variance(self, input_number):
+        self.weighted_variance = input_number
+    
     def set_variance(self, variance):
         self.variance = variance
         
@@ -386,7 +389,7 @@ class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
             var = np.var(np.array(scores))
             for j in range(self.num_heads):
                 small_window_list[j][i].set_variance(var)
-        
+                small_window_list[j][i].set_weighted_variance(var * np.exp(np.mean(scores)))
         #sort small_window_list
         for i in range(self.num_heads):
             small_window_list[i].sort()
@@ -399,6 +402,13 @@ class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
             top_var[i].sort(key = lambda a: a.variance)
         top_var = np.array(top_var)
         return top_var[:,-topn:].T
+    def weighted_topn_var(self, topn = 5):
+        top_weighted_var = self.sorted_small_windows_list.copy()
+        for i in range(self.num_heads):
+            top_weighted_var[i].sort(key = lambda a: a.weighted_variance)
+        top_weighted_var = np.array(top_weighted_var)
+        return top_weighted_var[:,-topn:].T
+        
         
     def score_heatmap_single_head(self, head_index):
         assert(head_index >= 0 and head_index < self.num_heads)
