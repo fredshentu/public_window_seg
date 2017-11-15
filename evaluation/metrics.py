@@ -111,7 +111,7 @@ if __name__ == '__main__':
         help="discard proposals per image below this threshold")
     args = parser.parse_args()
 
-    print('loading models ...')
+    # print('loading models ...')
     '''
     1) Do NMS over top 100 proposals per image to output remaining "k" proposals
     2) Save format as follows:
@@ -122,14 +122,14 @@ if __name__ == '__main__':
     '''
     gtList = np.load(args.gtpath)
     modelList = np.load(args.mpath)
-    print('... loaded!\nadding images now ...')
+    # print('... loaded!\nadding images now ...')
 
     metric = Metrics()
     for i in range(len(modelList)):
-        # if i>=30 and i<=34: continue
+        if i>=30 and i<=34: continue
         gt = gtList[i][1]
-        pred = modelList[i][1]
-        score = modelList[i][0].flatten()
+        pred = modelList[i][0,1]
+        score = modelList[i][0,0].flatten()
         if args.scoreTh is not None:
             topK = np.where(score > args.scoreTh)
             score = score[topK]
@@ -138,28 +138,28 @@ if __name__ == '__main__':
             topK = min(args.maxprop, pred.shape[0])
             score = score[:topK]
             pred = pred[:topK]
-        print('adding im=%02d' % (i+1))
+        # print('adding im=%02d' % (i+1))
         metric.add(gt, pred, score, i)
 
     ap3, pr3, rec3 = metric.AP(0.3)
     ap5, pr5, rec5 = metric.AP(0.5)
     abo, cov, maxPredProp = metric.ABO()
     maxprop = 100 if args.maxprop is None else args.maxprop
-    print('\n------------------------------------------')
-    print('Time taken: %.2f secs' % (time.time()-startTime))
-    print('Max predicted proposals per image allowed: %d' % maxprop)
-    print('Score threshold for proposals per image: %s' % str(args.scoreTh))
-    print('Model Name: %s' % args.mpath)
-    print('GT Name: %s' % args.gtpath)
-    print('\nAP at .3: %.2f' % (100*ap3))
-    # print('prec: ', [round(100*i, 2) for i in pr3])
-    # print('rec: ', [round(100*i, 2) for i in rec3])
-    print('\nAP at .5: %.2f' % (100*ap5))
-    # print('prec: ', [round(100*i, 2) for i in pr5])
-    # print('rec: ', [round(100*i, 2) for i in rec5])
-    print('\nABO: %.2f' % (100*abo))
-    print('Covering: %.2f' % (100*cov))
-    print('MaxPredProposalPerImage: %d\n' % maxPredProp)
+    # print('\n------------------------------------------')
+    # print('Time taken: %.2f secs' % (time.time()-startTime))
+    # print('Max predicted proposals per image allowed: %d' % maxprop)
+    # print('Score threshold for proposals per image: %s' % str(args.scoreTh))
+    # print('Model Name: %s' % args.mpath)
+    # print('GT Name: %s' % args.gtpath)
+    # print('\nAP at .3: %.2f' % (100*ap3))
+    # # print('prec: ', [round(100*i, 2) for i in pr3])
+    # # print('rec: ', [round(100*i, 2) for i in rec3])
+    # print('\nAP at .5: %.2f' % (100*ap5))
+    # # print('prec: ', [round(100*i, 2) for i in pr5])
+    # # print('rec: ', [round(100*i, 2) for i in rec5])
+    # print('\nABO: %.2f' % (100*abo))
+    # print('Covering: %.2f' % (100*cov))
+    # print('MaxPredProposalPerImage: %d\n' % maxPredProp)
     print([round(100*i, 2) for i in [ap3, ap5, abo, cov]] + [int(maxPredProp)])
-    print('------------------------------------------\n')
+    # print('------------------------------------------\n')
     # import IPython; IPython.embed()

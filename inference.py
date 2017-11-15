@@ -44,6 +44,7 @@ class small_window():
         #set variance for bootstrapping
         self.variance = None
         self.weighted_variance = None
+        self.mask_variance = None
     def __gt__(self, small_window2):
         return self.score > small_window2.score
     
@@ -320,18 +321,33 @@ class forward_pass_bootstrap(forward_pass): #current only resnet18 bootstrap
         num_slicing_window = len(small_window_list[0])
         for i in range(num_slicing_window):
             scores = []
+            masks = []
             for j in range(self.num_heads):
                 scores.append(small_window_list[j][i].score)
+                masks.append(small_window_list[j][i].mask)
             var = np.var(np.array(scores))
+            masks = np.array(masks)
+            #compute variance of masks and normalize masks
+            mean_mask_size = np.sum(masks)/(1.0 * self.num_heads)
+            mask_var = np.var(masks, 0)
+            normalized_mask_var = np.sum(mask_var)/mean_mask_size
             for j in range(self.num_heads):
                 small_window_list[j][i].set_variance(var)
                 small_window_list[j][i].set_weighted_variance(var * np.exp(np.mean(scores)))
+                #scale msk variance by score
+                small_window_list[j][i].mask_variance = normalized_mask_var*np.exp(np.mean(scores))
         #sort small_window_list
         for i in range(self.num_heads):
             small_window_list[i].sort()
         self.sorted_small_windows_list = small_window_list
         return small_window_list
-        
+    def topn_mask_var(self, topn = 5):
+        top_mask_var = self.sorted_small_windows_list.copy()
+        for i in range(self.num_heads):
+            top_mask_var[i].sort(key = lambda a: a.mask_variance)
+        top_mask_var = np.array(top_mask_var)
+        return top_mask_var[:,-topn:].T
+    
     def topn_var(self, topn = 5):
         top_var = self.sorted_small_windows_list.copy()
         for i in range(self.num_heads):

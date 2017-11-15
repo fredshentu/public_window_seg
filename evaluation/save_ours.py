@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import subprocess
 
 
-def load_val_separate_msk(img_path = './valimages', \
-                    mask_path = './valmasks'):
+def load_val_separate_msk(img_path = './images/valimages', \
+                    mask_path = './images/valmasks'):
     img_items = sorted([img_path + '/'+ item for item in os.listdir(img_path)])
     mask_items = sorted([mask_path + '/'+ item for item in os.listdir(mask_path)])
     imgs = np.zeros((len(img_items), 350, 430, 3))
@@ -185,18 +185,19 @@ Models below are trained with all new data
 
 #############################################################
 
-# modelGroup6 = [
-#                 glob.glob("../models/033*199000*.meta")[0][:-5],\
-#                 glob.glob("../models/034*199000*.meta")[0][:-5],\
-#                 glob.glob("../models/035*199000*.meta")[0][:-5],\
-#                 glob.glob("../models/036*199000*.meta")[0][:-5],\
-#                 ] #bk shared w
+modelGroup6 = [
+                glob.glob("../models/033*199000*.meta")[0][:-5],\
+                glob.glob("../models/034*199000*.meta")[0][:-5],\
+                glob.glob("../models/035*199000*.meta")[0][:-5],\
+                glob.glob("../models/036*199000*.meta")[0][:-5],\
+                ] #bk shared w
+import IPython; IPython.embed()
 
-# for mask_th in [0.6,0.5,0.7]:
-#     for model in modelGroup6:
-#         print("Loading model %s"%model)
-#         output = eval_wrapper(model, mask_th, addBg = True, bk_diff_w = False)
-#         np.save("./savedOutputs/%s_msk_thr%02f.npy"%(model[10:][:3], mask_th), output)
+for mask_th in [0.6,0.5,0.7]:
+    for model in modelGroup6:
+        print("Loading model: %s" % model)
+        output = eval_wrapper(model, mask_th, addBg='background_True' in model, bk_diff_w = False)
+        np.save("./savedOutputs/%s_msk_thr%02f.npy"%(model[10:][:3], mask_th), output)
 
 ##############################################################
 

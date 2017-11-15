@@ -1,6 +1,16 @@
 #!/bin/bash
-for i in $(seq -f "%03g" 1 23)
+for i in $(seq -f "%g" 0 4)
 do
-  python metrics.py -mp savedOutputs/$i.npy
+  python metrics.py -mp savedOutputs/501_msk_thr0.50_head_"$i".npy
+  python metrics.py -mp savedOutputs/503_msk_thr0.50_head_"$i".npy
 done
-python metrics.py -mp savedOutputs/deepmask_result_NMS.npy
+for i in $(seq -f "%g" 0 4)
+do
+  python metrics.py -mp savedOutputs/501_msk_thr0.60_head_"$i".npy
+  python metrics.py -mp savedOutputs/503_msk_thr0.60_head_"$i".npy
+done
+for i in $(seq -f "%g" 0 4)
+do
+  python metrics.py -mp savedOutputs/501_msk_thr0.70_head_"$i".npy
+  python metrics.py -mp savedOutputs/503_msk_thr0.70_head_"$i".npy
+done
