@@ -1,5 +1,5 @@
 """
-DeepMask reference
+DeepMask forward pass
 
 """
 from __future__ import division
